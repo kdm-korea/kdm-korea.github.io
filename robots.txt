@@ -1,0 +1,1 @@
+Sitemap: https://kdm-korea.github.io/jekyll-theme-yat/sitemap.xml

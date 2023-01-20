@@ -105,7 +105,12 @@ data-ad-width = "320"
 data-ad-height = "100"></ins>
 
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
-
+<script>
+   const commentTheme = () => {
+      const theme = document.getElementsByTagName('html')[0].getAttribute('data-theme');
+      return theme === light ? 'light_tritanopia' : "preferred_color_scheme";
+   }
+</script>
 <script src="https://giscus.app/client.js"
         data-repo="kdm-korea/kdm-korea.github.io"
         data-repo-id="R_kgDOIzxYeA"
@@ -116,8 +121,10 @@ data-ad-height = "100"></ins>
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme="preferred_color_scheme"
+        data-theme= "{{commentTheme()}}"
         data-lang="ko"
         crossorigin="anonymous"
         async>
 </script>
+
+document.getElementsByTagName('html')[0].getAttribute('data-theme')

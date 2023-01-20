@@ -1,9 +1,9 @@
 ---
 layout: post
 title: Elasticsearch Cluster node 증설
-subtitle: 엘라스틱 노듣 클러터링 간 설정
-author: Jeffrey
-categories: [ElasticSearch, cluster]
+subtitle: 엘라스틱 노드 클러터링 간 설정
+author: DongMin Kim
+categories: [ElasticSearch]
 banner:
   image: https://bit.ly/3xTmdUP
   opacity: 0.618
@@ -21,8 +21,6 @@ sidebar: []
 ### 1. 개요
 
 1. 고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 ES 설정을 적어놓는다.
-
-</br>
 
 ### 2. 서버 증설을 위한 ES 설정
 
@@ -48,61 +46,59 @@ sidebar: []
     5. cluster.initial_master_nodes
        1. 클러스터를 구성하기 위한 노드명
 
-</br>
+2.  예시
 
-2. 예시
+    - 1번 노드
 
-   - 1번 노드
+      ```yaml
+      ------------------------ Cluster -------------------------
+      cluster.name: cluster_test
+      -------------------------- Node --------------------------
+      node.name: node1
+      ------------------------- NetWork ------------------------
+      network.host: '111.0.111.111'
+      http.port: 100
+      transport.port: 101
+      ------------------------- Discovery ----------------------
+      discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
+      cluster.initial_master_nodes: ['node1', node2, node3]
+      ```
 
-     ```yaml
-     ------------------------ Cluster -------------------------
-     cluster.name: cluster_test
-     -------------------------- Node --------------------------
-     node.name: node1
-     ------------------------- NetWork ------------------------
-     network.host: '111.0.111.111'
-     http.port: 100
-     transport.port: 101
-     ------------------------- Discovery ----------------------
-     discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
-     cluster.initial_master_nodes: ['node1', node2, node3]
-     ```
+    - 2번 노드
 
-   - 2번 노드
+      ```yaml
+      ------------------------ Cluster -------------------------
+      cluster.name: cluster_test
+      -------------------------- Node --------------------------
+      node.name: node2
+      ------------------------- NetWork ------------------------
+      network.host: '111.0.111.111'
+      http.port: 200
+      transport.port: 201
+      ------------------------- Discovery ----------------------
+      discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
+      cluster.initial_master_nodes: ['node1', node2, node3]
+      ```
 
-     ```yaml
-     ------------------------ Cluster -------------------------
-     cluster.name: cluster_test
-     -------------------------- Node --------------------------
-     node.name: node2
-     ------------------------- NetWork ------------------------
-     network.host: '111.0.111.111'
-     http.port: 200
-     transport.port: 201
-     ------------------------- Discovery ----------------------
-     discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
-     cluster.initial_master_nodes: ['node1', node2, node3]
-     ```
+    - 3번 노드
+      ```yaml
+      ------------------------ Cluster -------------------------
+      cluster.name: cluster_test
+      -------------------------- Node --------------------------
+      node.name: node3
+      ------------------------- NetWork ------------------------
+      network.host: '111.0.111.111'
+      http.port: 300
+      transport.port: 301
+      ------------------------- Discovery ----------------------
+      discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
+      cluster.initial_master_nodes: ['node1', node2, node3]
+      ```
 
-   - 3번 노드
-     ```yaml
-     ------------------------ Cluster -------------------------
-     cluster.name: cluster_test
-     -------------------------- Node --------------------------
-     node.name: node3
-     ------------------------- NetWork ------------------------
-     network.host: '111.0.111.111'
-     http.port: 300
-     transport.port: 301
-     ------------------------- Discovery ----------------------
-     discovery.seed_hosts: ['111.0.111.111:101', '111.0.111.111:201', '111.0.111.111:301']
-     cluster.initial_master_nodes: ['node1', node2, node3]
-     ```
-
-3. 클러스터 설정 시 주의점
-   1. minium master node
-      1. 데이터를 유지할 수 있는 최소 Master Node의 수를 기입
-      2. Master Node가 최소 Master Node 보다 적게 구동된다면 Split Brain이 발생할 수 있음.
+3.  클러스터 설정 시 주의점
+    1.  minium master node
+        1. 데이터를 유지할 수 있는 최소 Master Node의 수를 기입
+        2. Master Node가 최소 Master Node 보다 적게 구동된다면 Split Brain이 발생할 수 있음.
 
 <ins class="kakao_ad_area" style="display:none;"
 data-ad-unit = "DAN-IR3SEKWYp9BSWUj6"

@@ -2,7 +2,6 @@
 layout: post
 title: Elasticsearch Cluster node 증설
 subtitle: 엘라스틱 노드 클러터링 간 설정
-author: DongMin Kim
 categories: [ElasticSearch]
 banner:
   image: https://bit.ly/3xTmdUP

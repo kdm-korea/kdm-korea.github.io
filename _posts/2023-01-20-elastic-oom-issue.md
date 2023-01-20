@@ -2,7 +2,7 @@
 layout: post
 title: ElasticSearch OLD GC로 인한 OOM 발생이슈
 subtitle: Text analyzer token issue
-categories: [elasticSearch]
+categories: [ElasticSearch]
 tags: [ElaticSearch, Node Cluster, Old GC, ElasticSearch OOM]
 ---
 

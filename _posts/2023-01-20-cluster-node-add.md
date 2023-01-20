@@ -105,3 +105,19 @@ data-ad-width = "320"
 data-ad-height = "100"></ins>
 
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
+
+<script src="https://giscus.app/client.js"
+        data-repo="kdm-korea/kdm-korea.github.io"
+        data-repo-id="R_kgDOIzxYeA"
+        data-category="Q&A"
+        data-category-id="DIC_kwDOIzxYeM4CTtII"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="preferred_color_scheme"
+        data-lang="ko"
+        crossorigin="anonymous"
+        async>
+</script>

@@ -106,10 +106,21 @@ data-ad-height = "100"></ins>
 
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
 <script>
-   const commentTheme = () => {
-      const theme = document.getElementsByTagName('html')[0].getAttribute('data-theme');
-      return theme === light ? 'light_tritanopia' : "preferred_color_scheme";
-   }
+      const changeGiscusTheme = () => {
+         const theme = document.documentElement.getAttribute('data-theme') === 'dark' ?  'preferred_color_scheme' : 'light_tritanopia';
+
+         const sendMessage = (message) => {
+            const iframe = document.querySelector('iframe.giscus-frame');
+            if (!iframe) return;
+            iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+         }
+
+         sendMessage({
+            setConfig: {
+            theme: theme
+            }
+         });
+      }
 </script>
 <script src="https://giscus.app/client.js"
         data-repo="kdm-korea/kdm-korea.github.io"

@@ -107,7 +107,9 @@ data-ad-height = "100"></ins>
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
 <script>
 function changeGiscusTheme () {
-    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia';
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
 
     function sendMessage(message) {
       const iframe = document.querySelector('iframe.giscus-frame');

@@ -114,7 +114,11 @@ function changeGiscusTheme () {
     function sendMessage(message) {
       const iframe = document.querySelector('iframe.giscus-frame');
       if (!iframe) return;
-      iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
     }
 
     sendMessage({
@@ -134,7 +138,7 @@ function changeGiscusTheme () {
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme= "preferred_color_scheme"
+        data-theme= "light_tritanopia"
         data-lang="ko"
         crossorigin="anonymous"
         async>

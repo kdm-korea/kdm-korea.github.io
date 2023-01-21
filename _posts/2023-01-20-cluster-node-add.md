@@ -106,21 +106,21 @@ data-ad-height = "100"></ins>
 
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
 <script>
-      const changeGiscusTheme = () => {
-         const theme = document.documentElement.getAttribute('data-theme') === 'dark' ?  'preferred_color_scheme' : 'light_tritanopia';
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia';
 
-         const sendMessage = (message) => {
-            const iframe = document.querySelector('iframe.giscus-frame');
-            if (!iframe) return;
-            iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
-         }
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+    }
 
-         sendMessage({
-            setConfig: {
-            theme: theme
-            }
-         });
+    sendMessage({
+      setConfig: {
+        theme: theme
       }
+    });
+  }
 </script>
 <script src="https://giscus.app/client.js"
         data-repo="kdm-korea/kdm-korea.github.io"
@@ -132,7 +132,7 @@ data-ad-height = "100"></ins>
         data-reactions-enabled="1"
         data-emit-metadata="0"
         data-input-position="top"
-        data-theme= "{{commentTheme()}}"
+        data-theme= "preferred_color_scheme"
         data-lang="ko"
         crossorigin="anonymous"
         async>

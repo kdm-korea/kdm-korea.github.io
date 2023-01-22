@@ -23,8 +23,6 @@ sidebar: []
 
 2. ES의 설정 변경/ 서버 가감 등, 관리자의 의도된 서버 재시작에 대한 작업은 Rolling Restart의 방법을 사용하는 것이 좋다.
 
-</br>
-
 ### 2. Rolling Restart 순서
 
 1. ReBalancing Disable
@@ -42,11 +40,7 @@ sidebar: []
 
    아래 옵션 적용 시 노드 증설 시 사드의 리밸런싱을 맏아 리소스를 낭비를 최소화할 수 있다.
 
-</br>
-
 2. 노드 가감 & 재기동
-
-</br>
 
 3. ReBalancing able
 

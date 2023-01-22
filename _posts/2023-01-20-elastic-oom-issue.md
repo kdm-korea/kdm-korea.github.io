@@ -24,3 +24,42 @@ data-ad-width = "320"
 data-ad-height = "100"></ins>
 
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+<script src="https://giscus.app/client.js"
+        data-repo="kdm-korea/kdm-korea.github.io"
+        data-repo-id="R_kgDOIzxYeA"
+        data-category="Q&A"
+        data-category-id="DIC_kwDOIzxYeM4CTtII"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme= "light_tritanopia"
+        data-lang="ko"
+        crossorigin="anonymous"
+        async>
+</script>

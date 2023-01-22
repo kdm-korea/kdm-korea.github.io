@@ -19,7 +19,7 @@ sidebar: []
 
 ### 1. 개요
 
-1. 고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 ES 설정을 적어놓는다.
+1. 고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 ES 설정
 
 ### 2. 서버 증설을 위한 ES 설정
 
@@ -143,5 +143,3 @@ function changeGiscusTheme () {
         crossorigin="anonymous"
         async>
 </script>
-
-document.getElementsByTagName('html')[0].getAttribute('data-theme')

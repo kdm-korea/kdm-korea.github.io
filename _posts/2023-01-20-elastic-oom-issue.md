@@ -16,7 +16,7 @@ tags: [ElaticSearch, Node Cluster, Old GC, ElasticSearch OOM]
 
 해당 데이터의 필드는 공백 없이 10,000자가 넘어갔다.
 
-확인해보니, lucene에서 데이터 분석 시 토큰분석 가능 길이를 넘어 발생하는 문제였다. 해당 데이터는 중요도가 떨어지는 데이터로 판단되어 5000자 기준으로 공백을 넣어 색인 처리하였다.
+확인해보니, lucene에서 데이터 분석 시 토큰분석 가능 길이를 넘어 발생하는 문제였다. 해당 데이터는 중요도가 떨어지는 데이터로 판단되어 500자 기준으로 공백을 넣어 색인 처리하였다.
 
 <ins class="kakao_ad_area" style="display:none;"
 data-ad-unit = "DAN-IR3SEKWYp9BSWUj6"

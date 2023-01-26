@@ -158,7 +158,7 @@ defaults:
   home:
     heading: "Backend Programming"
     banner: "elasticSearch, typescript, architecture, infra"
-#     subheading: "Your awesome subheading"
+    subheading: "elasticSearch, typescript, architecture, infra"
 
 # Banner default settings
 # These banner settings are for global banner default, but you can also

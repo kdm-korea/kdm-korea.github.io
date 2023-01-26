@@ -154,11 +154,11 @@ yat:
 #   - about.md
 
 # Page default value
-# defaults:
-#   home:
-#     heading: "Your awesome heading"
+defaults:
+  home:
+    heading: "Backend Programming"
+    banner: "elasticSearch, typescript, architecture, infra"
 #     subheading: "Your awesome subheading"
-#     banner: "Your image url"
 
 # Banner default settings
 # These banner settings are for global banner default, but you can also

@@ -110,9 +110,9 @@ sidebar: []
 4.  MeCab 설치
 
     ```sh
-    $ wget https://bitbucket.org/eunjeon/mecab-ko/downloads/mecab-0.996-ko-0.9.1.tar.gz
-    $ tar xvfz mecab-0.996-ko-0.9.1.tar.gz
-    $ cd mecab-0.996-ko-0.9.1/
+    $ wget https://bitbucket.org/eunjeon/mecab-ko/downloads/mecab-0.996-ko-0.9.2.tar.gz
+    $ tar xvfz mecab-0.996-ko-0.9.2.tar.gz
+    $ cd mecab-0.996-ko-0.9.2/
     $ ./configure --prefix=/path/to/mecab
     $ make
     $ make install

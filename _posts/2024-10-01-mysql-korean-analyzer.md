@@ -124,7 +124,7 @@ sidebar: []
 - MeCab은 일본어 형태소 분석기 플러그인으로써, 기본적으로 한국어는 존재하지 않는다. 해당 플러그인으로 한국어 형태소 분석을 하기 위해 은전한닢의 사전을 사용한다.
 - 은전한닢과 MaCab의 설치, 연결되어 있다는 가정으로 진행함
 
-1. [은전한닙, MeCab 설치 =>](../../../2024-09-27-mysql-mecab-install.md)
+1. [은전한닙, MeCab 설치 =>](https://kdm-korea.github.io/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html)
 2. Mysql 설정에 플러그인 등록
 
    ```sh

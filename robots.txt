@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: http://kdm-korea.github.io/sitemap.xml

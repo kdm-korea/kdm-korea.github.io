@@ -3,6 +3,9 @@ layout: post
 title: Elasticsearch Cluster node 재시작
 subtitle: 엘라스틱 노드 클러터링 간 설정
 categories: [ElasticSearch]
+sitemap:
+  changefreq: daily
+  priority: 0.8
 banner:
   image: https://bit.ly/3xTmdUP
   opacity: 0.618

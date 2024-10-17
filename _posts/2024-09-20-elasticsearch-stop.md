@@ -3,6 +3,9 @@ layout: post
 title: Elasticsearch 종료
 subtitle: 엘라스틱서치 종료 방법
 categories: [ElasticSearch]
+sitemap:
+  changefreq: daily
+  priority: 0.8
 banner:
   image: https://bit.ly/3xTmdUP
   opacity: 0.618

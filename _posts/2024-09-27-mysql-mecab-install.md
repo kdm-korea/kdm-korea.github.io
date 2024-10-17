@@ -3,6 +3,9 @@ layout: post
 title: MySQL에 MeCab, 은전한닢 설치
 subtitle: MySQL 한국어 형태소분석기 플러그인 추가를 위한 설치
 categories: [mysql, analyzer, fulltext search, FTS, MeCab]
+sitemap:
+  changefreq: daily
+  priority: 0.8
 banner:
   image: https://bit.ly/3xTmdUP
   opacity: 0.618

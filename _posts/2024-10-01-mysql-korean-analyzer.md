@@ -3,6 +3,9 @@ layout: post
 title: MySQL에서의 한국어 형태소 분석 및 전문검색 테스트
 subtitle: FullText Search, MeCab을 활용한 사용자 검색 고도화
 categories: [mysql, analyzer, fulltext search, FTS, MeCab]
+sitemap:
+  changefreq: daily
+  priority: 0.8
 banner:
   image: https://bit.ly/3xTmdUP
   opacity: 0.618

@@ -159,13 +159,16 @@ sidebar: []
 
    mysql> SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
    ```
-
-<ins class="kakao_ad_area" style="display:none;"
-data-ad-unit = "DAN-IR3SEKWYp9BSWUj6"
-data-ad-width = "320"
-data-ad-height = "100"></ins>
-
+<html>
+  <body>
+    <ins class="kakao_ad_area" style="display:none;"
+    data-ad-unit = "DAN-IR3SEKWYp9BSWUj6"
+    data-ad-width = "320"
+    data-ad-height = "100"></ins>    
+  </body>
+</html>
 <script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
+
 <script>
 function changeGiscusTheme () {
     const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'

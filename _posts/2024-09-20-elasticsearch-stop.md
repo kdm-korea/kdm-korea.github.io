@@ -23,7 +23,7 @@ sidebar: []
 ### 시그널을 추가한 종료
 
 ```bash
-$ Kill -9 SIGTERM ${PID}
+$ Kill SIGTERM ${PID}
 ```
 
 - 위 시그널을 추가하게 되면 정상적인 엘라스틱서치 종료가 가능함.

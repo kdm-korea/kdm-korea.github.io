@@ -1,0 +1,1095 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.3.4">Jekyll</generator><link href="https://kdm-korea.github.io/jekyll-theme-yat/feed.xml" rel="self" type="application/atom+xml" /><link href="https://kdm-korea.github.io/jekyll-theme-yat/" rel="alternate" type="text/html" /><updated>2024-10-17T13:01:20+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/feed.xml</id><title type="html">Sino</title><subtitle>Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description.</subtitle><author><name>Sino</name></author><entry><title type="html">MySQL에서의 한국어 형태소 분석 및 전문검색 테스트</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer.html" rel="alternate" type="text/html" title="MySQL에서의 한국어 형태소 분석 및 전문검색 테스트" /><published>2024-10-01T00:00:00+00:00</published><updated>2024-10-01T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer.html"><![CDATA[<h1 id="mysql에서-형태소-분석-및-전문검색-방법">MySQL에서 형태소 분석 및 전문검색 방법</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>Elasticsearch를 활용한 검색만을 사용하다가, ES검색을 사용하지 않고 DB로만 사용하고 싶다는 요구가 있어 만들어보게 되었다.</li>
+  <li>먼저, InnoDB에서 지원하는 FTS를 사용하여 ngram을 추가하고, 검색결과 고도화를 위해 MeCab을 이용하여 형태소 분석을 진행하였다.</li>
+</ul>
+
+<h3 id="1-mysql-fulltext-search">1. MySQL FullText Search</h3>
+
+<ul>
+  <li>MySQL 내 <strong>MyISAM은 MySQL5.5버전 이상부터 지원</strong>하고, <strong>InnoDB는 MySQL 5.6버전</strong>부터 FTS(FullText Search)를 지원한다. CJK(중국어, 일본어, 한국어)를 지원한다.</li>
+  <li>기본적인 InnoDB 전문검색(FTS)는 구분자(공백, 단어분리자)를 이용하여 토큰을 생성한다. 하지만 한국어는 <strong>조사와 같은 품사</strong>가 있어, 다른 방법을 사용해야 한다.</li>
+  <li>인덱스 파서 방식은 여러가지가 있지만 검색 시 가장 매칭이 높게 나올 수 있는 <code class="language-plaintext highlighter-rouge">ngram parser</code>방식을 사용하여 토큰화 해보았다.</li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">minimum_length</code>가 2인 경우</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 대한민국
+analyzer =&gt; 대한, 한민, 민국
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">minimum_length</code>가 3인 경우</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 대한민국
+analyzer =&gt; 대한민, 한민국
+</code></pre></div>    </div>
+
+    <blockquote>
+      <p>위와 같이 MySQL에서 ngram은 단일 길이로만 토큰이 생성된다. 최소~최대 길이 ngram 토큰을 생성하는 Multi parser index를 사용하는 방식도 존재한다고 한다.</p>
+    </blockquote>
+  </li>
+  <li>
+    <p>사용방법</p>
+
+    <ol>
+      <li>
+        <p>Table 생성 시 검색 대상 필드에 사용한 분석기와 FTS 인덱스 설정 / 테이블 수정</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">articles</span>
+<span class="p">(</span>
+        <span class="n">FTS_DOC_ID</span> <span class="nb">BIGINT</span> <span class="nb">UNSIGNED</span> <span class="n">AUTO_INCREMENT</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span>
+        <span class="n">title</span> <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+        <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span>
+<span class="p">)</span> <span class="n">Engine</span><span class="o">=</span><span class="n">InnoDB</span> <span class="nb">CHARACTER</span> <span class="k">SET</span> <span class="n">utf8mb4</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="mi">26</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="o">#</span> <span class="k">ALTER</span> <span class="k">TABLE</span> <span class="n">articles</span> <span class="k">ADD</span> <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span><span class="p">;</span>
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="o">#</span> <span class="k">CREATE</span> <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span> <span class="k">ON</span> <span class="n">articles</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span><span class="p">;</span>
+</code></pre></div>        </div>
+
+        <p>데이터 생성…</p>
+      </li>
+      <li>
+        <p>토큰화된 데이터 확인 및 결과 유추</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">INSERT</span> <span class="k">INTO</span> <span class="n">articles</span> <span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">VALUES</span> <span class="p">(</span><span class="s1">'my sql'</span><span class="p">);</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">1</span> <span class="k">row</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">03</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SET</span> <span class="k">GLOBAL</span> <span class="n">innodb_ft_aux_table</span><span class="o">=</span><span class="nv">"test/articles"</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">00</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">INFORMATION_SCHEMA</span><span class="p">.</span><span class="n">INNODB_FT_INDEX_CACHE</span><span class="p">;</span>
+</code></pre></div>        </div>
+
+        <p>Set Global 쿼리는 테이블 최적화 시 테이블 크기에 따라 오래 걸릴 수 있기 때문에 FullText에 대한 캐시 확인</p>
+      </li>
+      <li>
+        <p>검색 시 SQL</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">articles</span> <span class="k">WHERE</span> <span class="k">MATCH</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="n">AGAINST</span><span class="p">(</span><span class="s1">'sql'</span> <span class="k">IN</span> <span class="nb">BOOLEAN</span> <span class="k">MODE</span><span class="p">);</span>
+</code></pre></div>        </div>
+
+        <p>추가적으로 제외어, 조건절 등 여러 검색 연산자를 지원함.</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: center">조건절</th>
+              <th style="text-align: left">설명</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align: center">+</td>
+              <td style="text-align: left">and 조건</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">-</td>
+              <td style="text-align: left">not 조건</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">&lt;</td>
+              <td style="text-align: left">검색순위 하햫</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">&gt;</td>
+              <td style="text-align: left">검색순위 상향</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">()</td>
+              <td style="text-align: left">검색결과 내 검색</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">~</td>
+              <td style="text-align: left">검색순위 최저 하향</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">*</td>
+              <td style="text-align: left">검색어 기준 전체검색</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">""</td>
+              <td style="text-align: left">구문검색</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">articles</span> <span class="k">WHERE</span> <span class="k">MATCH</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="n">AGAINST</span><span class="p">(</span><span class="s1">'+sql -my'</span> <span class="k">IN</span> <span class="nb">BOOLEAN</span> <span class="k">MODE</span><span class="p">);</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>문제점</p>
+
+        <p>(정확성)해당 Analyzer를 사용했을 때, 검색의 결과는 나오지만, 사용자 니즈에 맞는 <strong>정확한 검색결과</strong>를 돌출하지 않는다.</p>
+
+        <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 검색어: ten
+result: sentence, ten, ...
+</code></pre></div>        </div>
+
+        <p>위 에시에서 숫자를 검색했을떄 뜻하지 않은 sentence가 반환된다.</p>
+
+        <p>사용자의 의도를 파악하여 결과를 반환하려면 의미있는 단어에 대한 필터링이 필요했다.</p>
+
+        <p>위 조건에 맞추려면 형태소 분석이 필요하여 플러그인을 추가하게 되었다.</p>
+      </li>
+      <li>
+        <p>stopWord는 불용어 용어집을 추가하고, 토큰을 확인하여 불필요한 단어 추가</p>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<p>&lt;/br&gt;</p>
+
+<h3 id="2-mecab-한국어-형태소-분석">2. MeCab, 한국어 형태소 분석</h3>
+
+<ul>
+  <li>MySQL에서 MeCab을 플러그인 형태로 지원하고 있어 사용하게 되었다.</li>
+  <li>MeCab은 일본어 형태소 분석기 플러그인으로써, 기본적으로 한국어는 존재하지 않는다. 해당 플러그인으로 한국어 형태소 분석을 하기 위해 은전한닢의 사전을 사용한다.</li>
+  <li>은전한닢과 MaCab의 설치, 연결되어 있다는 가정으로 진행함</li>
+</ul>
+
+<ol>
+  <li><a href="https://kdm-korea.github.io/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html">은전한닙, MeCab 설치 =&gt;</a></li>
+  <li>
+    <p>Mysql 설정에 플러그인 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>vi /etc/mysql/my.cnf
+
+<span class="c"># mecab 한국어 사전 추가</span>
+<span class="o">[</span>mysqld]
+loose-mecab-rc-file <span class="o">=</span> /path/to/mecab/etc/mecabrc
+innodb_ft_min_token_size <span class="o">=</span> 1
+</code></pre></div>    </div>
+  </li>
+  <li>플러그인 설치
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">install</span> <span class="n">plugin</span> <span class="n">mecab</span> <span class="n">soname</span> <span class="s1">'libpluginmecab.so'</span><span class="p">;</span>
+</code></pre></div>    </div>
+  </li>
+  <li>테이블 생성 및 사용
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">articles_mecab</span> <span class="p">(</span><span class="n">id</span> <span class="nb">SERIAL</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span> <span class="n">title</span> <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">255</span><span class="p">),</span> <span class="n">FULLTEXT</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">mecab</span><span class="p">)</span> <span class="nb">CHARACTER</span> <span class="k">SET</span> <span class="n">utf8</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="mi">26</span> <span class="n">sec</span><span class="p">)</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>결과 확인</p>
+
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">INSERT</span> <span class="k">INTO</span> <span class="n">articles_mecab</span> <span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">VALUES</span> <span class="p">(</span><span class="s1">'my sql'</span><span class="p">);</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">1</span> <span class="k">row</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">03</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SET</span> <span class="k">GLOBAL</span> <span class="n">innodb_ft_aux_table</span><span class="o">=</span><span class="nv">"test/articles_mecab"</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">00</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">INFORMATION_SCHEMA</span><span class="p">.</span><span class="n">INNODB_FT_INDEX_CACHE</span><span class="p">;</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+<html>
+  <body>
+    <ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins>    
+  </body>
+</html>
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="형태소 분석" /><summary type="html"><![CDATA[MySQL에서 형태소 분석 및 전문검색 방법]]></summary></entry><entry><title type="html">MySQL에 MeCab, 은전한닢 설치</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html" rel="alternate" type="text/html" title="MySQL에 MeCab, 은전한닢 설치" /><published>2024-09-27T00:00:00+00:00</published><updated>2024-09-27T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html"><![CDATA[<h1 id="mysql에-mecab-은전한닢-설치">MySQL에 MeCab, 은전한닢 설치</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>도커로 centos7을 띄어 설치하고 테스트해보았지만, 설치해야 되는 리스트가 많아 별도로 쓰게 되었다.</li>
+</ul>
+
+<h3 id="1-서버제원">1. 서버제원</h3>
+
+<ul>
+  <li>
+    <p>Docker image</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker pull centos:centos7.9.2009
+<span class="nv">$ </span>docker run <span class="nt">-ti</span> <span class="nt">-v</span> /sys/fs/cgroup:/sys/fs/cgroup:ro <span class="nt">-p</span> 80:80 centos:centos7.9.2009
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>OS 정보</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[</span>root@3ae62c03f268 ~]# <span class="nb">grep</span> <span class="nb">.</span> /etc/os-release
+<span class="nv">NAME</span><span class="o">=</span><span class="s2">"CentOS Linux"</span>
+<span class="nv">VERSION</span><span class="o">=</span><span class="s2">"7 (AltArch)"</span>
+<span class="nv">ID</span><span class="o">=</span><span class="s2">"centos"</span>
+<span class="nv">ID_LIKE</span><span class="o">=</span><span class="s2">"rhel fedora"</span>
+<span class="nv">VERSION_ID</span><span class="o">=</span><span class="s2">"7"</span>
+<span class="nv">PRETTY_NAME</span><span class="o">=</span><span class="s2">"CentOS Linux 7 (AltArch)"</span>
+<span class="nv">ANSI_COLOR</span><span class="o">=</span><span class="s2">"0;31"</span>
+<span class="nv">CPE_NAME</span><span class="o">=</span><span class="s2">"cpe:/o:centos:centos:7:server"</span>
+<span class="nv">HOME_URL</span><span class="o">=</span><span class="s2">"https://www.centos.org/"</span>
+<span class="nv">BUG_REPORT_URL</span><span class="o">=</span><span class="s2">"https://bugs.centos.org/"</span>
+<span class="nv">CENTOS_MANTISBT_PROJECT</span><span class="o">=</span><span class="s2">"CentOS-7"</span>
+<span class="nv">CENTOS_MANTISBT_PROJECT_VERSION</span><span class="o">=</span><span class="s2">"7"</span>
+<span class="nv">REDHAT_SUPPORT_PRODUCT</span><span class="o">=</span><span class="s2">"centos"</span>
+<span class="nv">REDHAT_SUPPORT_PRODUCT_VERSION</span><span class="o">=</span><span class="s2">"7"</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>CPU 정보</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[</span>root@3ae62c03f268 ~]# lscpu
+Architecture:          aarch64
+Byte Order:            Little Endian
+CPU<span class="o">(</span>s<span class="o">)</span>:                8
+On-line CPU<span class="o">(</span>s<span class="o">)</span> list:   0-7
+Thread<span class="o">(</span>s<span class="o">)</span> per core:    1
+Core<span class="o">(</span>s<span class="o">)</span> per socket:    8
+Socket<span class="o">(</span>s<span class="o">)</span>:             1
+Model:                 0
+BogoMIPS:              48.00
+L1d cache:             unknown size
+L1i cache:             unknown size
+L2 cache:              unknown size
+Flags:                 fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<h3 id="2-설치">2. 설치</h3>
+
+<ol>
+  <li>
+    <p>yum 설치 및 확인</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>yum <span class="nt">--version</span>
+</code></pre></div>    </div>
+
+    <p>yum 사용 시 “curl#6 - “Could not resolve host: mirrorlist.centos.org;…” 에러 발생 시 아래 명령어 사용,</p>
+
+    <p>dns, 포트 등 다양한 원인으로 에러가 발생함, 에러 발생 저장소를 변경하는 형태로 사용</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">sed</span> <span class="nt">-i</span> <span class="s1">'s/mirrorlist/#mirrorlist/g'</span> /etc/yum.repos.d/CentOS-<span class="k">*</span>
+<span class="nv">$ </span><span class="nb">sed</span> <span class="nt">-i</span> <span class="s1">'s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g'</span> /etc/yum.repos.d/CentOS-<span class="k">*</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>linux 기본 유틸 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>yum <span class="nb">install </span>wget
+yum <span class="nb">install </span>make
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>C, C++ 컴파일러 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># c complier gcc install</span>
+yum <span class="nb">install </span>gcc
+<span class="c"># gcc install check</span>
+gcc <span class="nt">--version</span>
+
+<span class="c"># c++ compiler g++ install</span>
+Yum <span class="nb">install </span>gcc-c++
+<span class="c"># g++ install check</span>
+g++ <span class="nt">--version</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>MeCab 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>wget https://bitbucket.org/eunjeon/mecab-ko/downloads/mecab-0.996-ko-0.9.2.tar.gz
+<span class="nv">$ </span><span class="nb">tar </span>xvfz mecab-0.996-ko-0.9.2.tar.gz
+<span class="nv">$ </span><span class="nb">cd </span>mecab-0.996-ko-0.9.2/
+<span class="nv">$ </span>./configure <span class="nt">--prefix</span><span class="o">=</span>/path/to/mecab
+<span class="nv">$ </span>make
+<span class="nv">$ </span>make <span class="nb">install</span>
+</code></pre></div>    </div>
+
+    <p>make 명령어 사용 시 arm64인 경우 make 커맨드에서 아래 오류발생..</p>
+
+    <blockquote>
+      <p>aarch64 configure: error: cannot guess build type;…</p>
+    </blockquote>
+
+    <p>configure에서 cpu 아키텍쳐를 명시하면 됨.</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>./configure <span class="nt">--prefix</span><span class="o">=</span>/path/to/mecab <span class="nt">--build</span><span class="o">=</span>aarch64-unknown-linux-gnu
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>은전한닢 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>wget https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz
+<span class="nv">$ </span><span class="nb">tar </span>xvfz mecab-ko-dic-2.1.1-20180720.tar.gz
+<span class="nv">$ </span><span class="nb">cd </span>mecab-ko-dic-2.1.1-20180720/
+<span class="nv">$ </span>./configure <span class="nt">--with-mecab-config</span><span class="o">=</span>/path/to/mecab/bin/mecab-config
+<span class="nv">$ </span>make
+<span class="nv">$ </span>make <span class="nb">install</span>
+</code></pre></div>    </div>
+
+    <p><strong>은전한닢</strong>은 가장 최근 사전으로 추가하여 사용, 2024.09 기준 최근 사전 추가함.</p>
+  </li>
+  <li>
+    <p>MeCab에 은전한닙 사전 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>vi /path/to/mecab/etc/mecabrc
+
+<span class="c"># 경로변경</span>
+dicdir <span class="o">=</span>  /path/to/mecab/lib/mecab/dic/mecab-ko-dic/
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>라이브러리 경로 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>vi ~/.bash_profile
+
+<span class="c">#내용추가</span>
+<span class="nb">export </span><span class="nv">PATH</span><span class="o">=</span>/path/to/mecab/bin/:<span class="nv">$PATH</span>
+<span class="nb">export </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/path/to/mecab/lib/:<span class="nv">$LD_LIBRARY_PATH</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>설정 동기화</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">source</span> ~/.bash_profile
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>테스트</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">echo</span> <span class="s2">"꽁꽁 얼어붙은 한강위를 고양이가 걸어다닙니다."</span> |mecab
+
+꽁꽁	MAG,<span class="k">*</span>,T,꽁꽁,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+얼어붙	VV,<span class="k">*</span>,T,얼어붙,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+은	ETM,<span class="k">*</span>,T,은,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+한	MM,~가산명사,T,한,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+강위	NNG,<span class="k">*</span>,F,강위,Compound,<span class="k">*</span>,<span class="k">*</span>,강+위,강/NNG/<span class="k">*</span>/1/1+강위/Compound/<span class="k">*</span>/0/2+위/NNG/<span class="k">*</span>/1/1
+를	JKO,<span class="k">*</span>,T,를,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+고양이	NNG,<span class="k">*</span>,F,고양이,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+가	JKS,<span class="k">*</span>,F,가,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+걸	VV,<span class="k">*</span>,T,걸,Inflect,VV,VV,걷/VV,<span class="k">*</span>
+어	EC,<span class="k">*</span>,F,어,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+다닙니다	VV+EF,<span class="k">*</span>,F,다닙니다,Inflect,VV,EF,다니/VV+ᄇ니다/EF,<span class="k">*</span>
+<span class="nb">.</span>	SF,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+EOS
+</code></pre></div>    </div>
+
+    <p>위 토큰에서 더 필요하다고 생각되는 토큰은 사용자 사전에 추가하여 사용하면 된다.</p>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="형태소 분석" /><summary type="html"><![CDATA[MySQL에 MeCab, 은전한닢 설치]]></summary></entry><entry><title type="html">Elasticsearch 종료</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop.html" rel="alternate" type="text/html" title="Elasticsearch 종료" /><published>2024-09-20T00:00:00+00:00</published><updated>2024-09-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop.html"><![CDATA[<h2 id="개요">개요</h2>
+
+<ul>
+  <li>엘라스틱 종료 시 보편적으로 Kill 명령어를 사용함. 하지만 강제 종료로 인해 미처리된 리소스 종료와 클러스터 정리 등 작업들을 정상적으로 완료하지 못함.</li>
+</ul>
+
+<h3 id="시그널을-추가한-종료">시그널을 추가한 종료</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>Kill SIGTERM <span class="k">${</span><span class="nv">PID</span><span class="k">}</span>
+</code></pre></div></div>
+
+<ul>
+  <li>위 시그널을 추가하게 되면 정상적인 엘라스틱서치 종료가 가능함.</li>
+</ul>
+
+<h3 id="치명적인-오류로-인한-중단">치명적인 오류로 인한 중단</h3>
+
+<ul>
+  <li>
+    <p>Elasticsearch에서 치명적인 오류 감지 시 자동으로 중지함. 해당 경우 아래 특수 코드를 함께 반환함.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align: left">에러코드</th>
+          <th style="text-align: left">설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align: left">158</td>
+          <td style="text-align: left">jvmkiller 에이전트에 의해 사망됨</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">143</td>
+          <td style="text-align: left">사용자 또는 커널 SIGTERM</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">137</td>
+          <td style="text-align: left">커널 oom-killer에 의해 살해됨</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">134</td>
+          <td style="text-align: left">세그먼테이션 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">128</td>
+          <td style="text-align: left">JVM 내부 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">127</td>
+          <td style="text-align: left">메모리 부족 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">126</td>
+          <td style="text-align: left">스택 오버플로우 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">125</td>
+          <td style="text-align: left">알 수 없는 가상 머신 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">124</td>
+          <td style="text-align: left">심각한 I/O 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">78</td>
+          <td style="text-align: left">부트스트랩 검사 실패</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">1</td>
+          <td style="text-align: left">알 수 없는 치명적인 오류</td>
+        </tr>
+      </tbody>
+    </table>
+  </li>
+</ul>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElasticSearch" /><category term="ElasticSearch stop" /><category term="ElasticSearch kill" /><category term="ElasticSearch signal" /><summary type="html"><![CDATA[개요]]></summary></entry><entry><title type="html">Elasticsearch Reindex 방법</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way.html" rel="alternate" type="text/html" title="Elasticsearch Reindex 방법" /><published>2023-03-02T00:00:00+00:00</published><updated>2023-03-02T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way.html"><![CDATA[<h1 id="reindex">ReIndex</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>인덱스를 복제할 수 있는 방법이다. 대량의 문서를 재색인해야 하는 경우 혹은, 데이터 복제본을 이용한 무언가의 작업이 필요한 경우 데이터를 복제할 수 있는 기능이다.</li>
+</ul>
+
+<h3 id="데이터-이관-방법에-대한-협의">데이터 이관 방법에 대한 협의</h3>
+
+<ul>
+  <li>
+    <p>이전 데이터를 마이그래이션하는 과정에서 데이터를 어떤 방식으로 이관할지에 대한 논의가 나왔다.</p>
+
+    <ol>
+      <li>
+        <p>스냅샷을 이용한 데이터 이관</p>
+      </li>
+      <li>
+        <p>Reindex를 이용한 데이터 이관</p>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<p>스냅샷은 우리가 필요로 하는 데이터를 제외하고도 수많은 인덱스가 생성되어 있었고, 신규 엘라스틱에 색인된 데이터가 존재하는 상태였다. 하여 <code class="language-plaintext highlighter-rouge">Reindex</code>를 이용한 데이터 이관을 하게 되었다.</p>
+
+<h3 id="reindex-방법">ReIndex 방법</h3>
+
+<ol>
+  <li>
+    <p>기존 ES의 elasticsearch.yml에 신규 ES의 주소를 입력 후 재기동한다. 동일한 서버 내 이관 시에는 필요없다.</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">reindex.remote.whitelist</span><span class="pi">:</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>신규 es를 이용하는 키바나에서 아래 명령어를 입력한다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">POST</span> <span class="nx">_reindex</span><span class="p">?</span><span class="nx">wait_for_completion</span><span class="o">=</span><span class="kc">false</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">source</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_old</span><span class="dl">"</span>
+  <span class="p">},</span>
+  <span class="dl">"</span><span class="s2">dest</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_new</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">wait_for_complate</code>
+        <ul>
+          <li>끝나는 시점까지 기다릴지 여부</li>
+        </ul>
+      </li>
+      <li>
+        <p>elasticsearch의 http는 <strong>Timeout</strong>이 <strong>30초</strong>가 기본값이다.</p>
+
+        <p>&lt;/br&gt;</p>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>반환된 태스크값을 이용하여 실행경과를 확인한다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">GET</span> <span class="nx">_tasks</span><span class="o">/</span><span class="nx">jrw3kRS2QaGqunpyqm7Paw</span><span class="p">:</span><span class="mi">40188327</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<hr />
+
+<h3 id="이슈사항">이슈사항</h3>
+
+<ol>
+  <li>
+    <p>thread pool</p>
+
+    <p>위와 같은 방법으로 진행했을 때 thread가 pool나는 현상이 발생했다. 확인해보니, 데이터의 크기가 커서 생기는 문제였다. 기본 배치의 문서 갯수는 1,000이 기본값이다.</p>
+
+    <p>ES에서는 100mb 이하의 용량으로 인덱싱 작업을 권장하였고, 현행 데이터에서 평균크기를 구하여 100개씩 색인하였다. 또한, 특수하게 큰 데이터가 존재할 수 있어, scroll 시간을 60분으로 맞추었다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nx">POST</span> <span class="nx">_reindex</span><span class="p">?</span><span class="nx">wait_for_completion</span><span class="o">=</span><span class="kc">false</span><span class="o">&amp;</span><span class="nx">scroll</span><span class="o">=</span><span class="mi">60</span><span class="nx">m</span>
+  <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">source</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_old</span><span class="dl">"</span><span class="p">,</span>
+      <span class="dl">"</span><span class="s2">size</span><span class="dl">"</span><span class="p">:</span> <span class="mi">100</span>
+    <span class="p">},</span>
+    <span class="dl">"</span><span class="s2">dest</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_new</span><span class="dl">"</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>rejected exception</p>
+
+    <p>해당 문제는 한번에 너무 많은 문서를 reindex하여 발생하는 문제였다. 수많은 벌크 인덱스가 인입되었으며, 처리속도가 이를 따라가지 못해 큐가 다 차버리면서 es가 동작하지 않았다.&lt;/br&gt;
+큐의 할당은 <strong>1,000</strong>이 기본값이다.&lt;/br&gt;
+해당 문제 해결을 위해 큐 사이즈를 5,000으로 변경하고 reindex의 갯수를 두개씩 진행하는 방향으로 설정하였다.</p>
+  </li>
+</ol>
+
+<h3 id="테스트">테스트</h3>
+
+<p>reindex 작업 시 배치 사이즈가 클수록 재색인 속도가 빠를까?</p>
+
+<ol>
+  <li>size를 10개로 잡아 재색인</li>
+  <li>size를 1,000로 잡아 재색인</li>
+</ol>
+
+<p>데이터를 테스트해본 결과 확연하게 배치가 클수록 속도가 빨랐다.&lt;/br&gt;
+서버간 이관이라 3 way handshake도 지속적으로 이루어질테고, 데이터 복사에 따른 피봇관리가 리소스를 차지한다고 생각이 들었다.&lt;/br&gt;
+문서 각기의 데이터를 유추할 수 있다면 100mb 이하가 되는한 가장 큰 사이즈로 구성하는것을 추천한다.</p>
+
+<h3 id="속도개선">속도개선</h3>
+
+<p>reindex 진행 시 속도를 개선할 수 있는점을 확인해보았다.&lt;/br&gt;
+물론 성능를 높이는 서버 증설이나, 힙메모리 증대는 허용하는 최대치(31GB)를 맞춰놓은 상태였다.&lt;/br&gt;
+index의 replica shard의 갯수를 0으로 변경하여 재색인 속도를 향상시켰다.</p>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch reindex" /><category term="ElasticSearch Data Migration" /><summary type="html"><![CDATA[ReIndex]]></summary></entry><entry><title type="html">Elasticsearch Cluster node 재시작</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart.html" rel="alternate" type="text/html" title="Elasticsearch Cluster node 재시작" /><published>2023-01-22T00:00:00+00:00</published><updated>2023-01-22T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart.html"><![CDATA[<h1 id="elasticsearch-cluster-node-재시작">Elasticsearch Cluster node 재시작</h1>
+
+<h3 id="1-개요">1. 개요</h3>
+
+<ol>
+  <li>
+    <p>고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 순서를 적어놓는다.</p>
+  </li>
+  <li>
+    <p>ES의 설정 변경/ 서버 가감 등, 관리자의 의도된 서버 재시작에 대한 작업은 Rolling Restart의 방법을 사용하는 것이 좋다.</p>
+  </li>
+</ol>
+
+<h3 id="2-rolling-restart-순서">2. Rolling Restart 순서</h3>
+
+<ol>
+  <li>
+    <p>ReBalancing Disable</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">PUT</span> <span class="nx">_cluster</span><span class="o">/</span><span class="nx">settings</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">transient</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">cluster.routing.allocation.enable</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">primary</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <p>ES 기본 설정으로 노드의 가감이 일어나게 되면 Shard의 Rebalancing이 일어나게 되어 검색속도 및 색인속도에 영향을 받게 된다.</p>
+
+    <p>아래 옵션 적용 시 노드 증설 시 사드의 리밸런싱을 맏아 리소스를 낭비를 최소화할 수 있다.</p>
+  </li>
+  <li>
+    <p>노드 가감 &amp; 재기동</p>
+  </li>
+  <li>
+    <p>ReBalancing able</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">PUT</span> <span class="nx">_cluster</span><span class="o">/</span><span class="nx">settings</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">transient</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">cluster.routing.allocation.enable</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">all</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <p>리밸런싱을 활성화한다. 리밸런싱 기능이 켜져있지 않다면, <code class="language-plaintext highlighter-rouge">Primary Shard</code>가 소실되었을 때 <code class="language-plaintext highlighter-rouge">Replica Shard</code>가 존재하더라도 <code class="language-plaintext highlighter-rouge">Primary Shard</code>로 승격되는 일이 일어나지 않는다. 또한 신규 색인 시 각 노드간 데이터의 Shard 불균형을 초래하게 된다.</p>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch Cluster" /><category term="Node Cluster restart" /><category term="Node restart" /><summary type="html"><![CDATA[Elasticsearch Cluster node 재시작]]></summary></entry><entry><title type="html">Elasticsearch Cluster node 증설</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add.html" rel="alternate" type="text/html" title="Elasticsearch Cluster node 증설" /><published>2023-01-20T00:00:00+00:00</published><updated>2023-01-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add.html"><![CDATA[<h1 id="elasticsearch-cluster-node-증설">Elasticsearch Cluster node 증설</h1>
+
+<h3 id="1-개요">1. 개요</h3>
+
+<ol>
+  <li>고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 ES 설정</li>
+</ol>
+
+<h3 id="2-서버-증설을-위한-es-설정">2. 서버 증설을 위한 ES 설정</h3>
+
+<ol>
+  <li>
+    <p>ES 클러스터를 위한 기본설정</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node1</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s">111.0.111.111</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">"</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">node1"</span><span class="pi">]</span>
+</code></pre></div>    </div>
+
+    <ol>
+      <li>cluster.name
+        <ol>
+          <li>클러스터를 구성하는 이름, ES의 모든 클러스터명은 동일해야 같은 집단으로 구성됨</li>
+        </ol>
+      </li>
+      <li>node.name
+        <ol>
+          <li>각 ES의 별칭, 고유한 값을 지녀야 함</li>
+        </ol>
+      </li>
+      <li>network.host
+        <ol>
+          <li>클러스터 구성을 위한 네크워크 IP</li>
+        </ol>
+      </li>
+      <li>discovery.seed_hosts
+        <ol>
+          <li>Cluster를 구성하는 모든 ES의 IP:PORT</li>
+          <li>해당 PORT는 내부 통신 포트(transport.port)로 구성해야 함.</li>
+        </ol>
+      </li>
+      <li>cluster.initial_master_nodes
+        <ol>
+          <li>클러스터를 구성하기 위한 노드명</li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+  <li>
+    <p>예시</p>
+
+    <ul>
+      <li>
+        <p>1번 노드</p>
+
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node1</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">100</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">101</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>2번 노드</p>
+
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node2</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">200</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">201</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>3번 노드</p>
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node3</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">300</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">301</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>클러스터 설정 시 주의점</p>
+    <ol>
+      <li>minium master node
+        <ol>
+          <li>데이터를 유지할 수 있는 최소 Master Node의 수를 기입</li>
+          <li>Master Node가 최소 Master Node 보다 적게 구동된다면 Split Brain이 발생할 수 있음.</li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch Cluster" /><category term="Node Cluster" /><summary type="html"><![CDATA[Elasticsearch Cluster node 증설]]></summary></entry><entry><title type="html">ElasticSearch OLD GC로 인한 OOM 발생이슈</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue.html" rel="alternate" type="text/html" title="ElasticSearch OLD GC로 인한 OOM 발생이슈" /><published>2023-01-20T00:00:00+00:00</published><updated>2023-01-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue.html"><![CDATA[<h2 id="elasticsearch-old-gc로-인한-oom-발생이슈">ElasticSearch OLD GC로 인한 OOM 발생이슈</h2>
+
+<p>10,000여건 되는 데이터를 색인하던 중 ES의 클러스터에서 힙메모리가 급작스럽에 풀을 쳤다. GC 로그를 확인해보니 OLD GC가 초당 5번정도 일어나고 있었다.</p>
+
+<p>운영이 시작된 시점에서 Aggregation의 호출이 많아 생기는 문제로 생각되어 GC를 수정하는 방향을 생각했다. 사용하는 GC는 CMS GC를 사용하고 있었으며, G1GC를 통해 OLD GC를 줄이는 방식을 생각했다.</p>
+
+<p>하지만 GC의 문제는 아니었고, 이용자가 없는 새벽 시간에도 GC는 짧은 간격으로 돌고 있었다. 데이터를 전체적으로 다시 색인하면서 시간 체크를 통해 데이터 상 문제가 있는지 체크하였다. 다음날 확인해보니 유독 색인에 긴 시간을 필요로 하는 데이터가 존재했다.</p>
+
+<p>해당 데이터의 필드는 공백 없이 10,000자가 넘어갔다.</p>
+
+<p>확인해보니, lucene에서 데이터 분석 시 토큰분석 가능 길이를 넘어 발생하는 문제였다. 해당 데이터는 중요도가 떨어지는 데이터로 판단되어 500자 기준으로 공백을 넣어 색인 처리하였다.</p>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="Node Cluster" /><category term="Old GC" /><category term="ElasticSearch OOM" /><summary type="html"><![CDATA[ElasticSearch OLD GC로 인한 OOM 발생이슈]]></summary></entry><entry><title type="html">Welcome to Jekyll!</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/jekyll/2018/12/07/welcome-to-jekyll.html" rel="alternate" type="text/html" title="Welcome to Jekyll!" /><published>2018-12-07T00:00:00+00:00</published><updated>2018-12-07T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/jekyll/2018/12/07/welcome-to-jekyll</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/jekyll/2018/12/07/welcome-to-jekyll.html"><![CDATA[<p>You’ll find this post in your <code class="language-plaintext highlighter-rouge">_posts</code> directory. Go ahead and edit it and re-build the site to see your changes. You can rebuild the site in many different ways, but the most common way is to run <code class="language-plaintext highlighter-rouge">jekyll serve</code>, which launches a web server and auto-regenerates your site when a file is updated.</p>
+
+<p>To add new posts, simply add a file in the <code class="language-plaintext highlighter-rouge">_posts</code> directory that follows the convention <code class="language-plaintext highlighter-rouge">YYYY-MM-DD-name-of-post.ext</code> and includes the necessary front matter. Take a look at the source for this post to get an idea about how it works.</p>
+
+<h2 id="section-1">section 1</h2>
+
+<p>Jekyll also offers powerful support for code snippets:</p>
+
+<figure class="highlight"><pre><code class="language-ruby" data-lang="ruby"><span class="k">def</span> <span class="nf">print_hi</span><span class="p">(</span><span class="nb">name</span><span class="p">)</span>
+<span class="nb">puts</span> <span class="s2">"Hi, </span><span class="si">#{</span><span class="nb">name</span><span class="si">}</span><span class="s2">"</span>
+<span class="k">end</span>
+<span class="n">print_hi</span><span class="p">(</span><span class="s1">'Tom'</span><span class="p">)</span>
+<span class="c1">#=&gt; prints 'Hi, Tom' to STDOUT.</span></code></pre></figure>
+
+<h2 id="section-2">section 2</h2>
+
+<p>Check out the <a href="https://jekyllrb.com/docs/home">Jekyll docs</a> for more info on how to get the most out of Jekyll. File all bugs/feature requests at <a href="https://github.com/jekyll/jekyll">Jekyll’s GitHub repo</a>. If you have questions, you can ask them on <a href="https://talk.jekyllrb.com/">Jekyll Talk</a>.</p>
+
+<p>$ a * b = c ^ b $</p>
+
+<p>$ 2^{\frac{n-1}{3}} $</p>
+
+<p>$ \int_a^b f(x)\,dx. $</p>
+
+<div class="language-cpp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#include</span> <span class="cpf">&lt;iostream&gt;</span><span class="cp">
+</span><span class="k">using</span> <span class="k">namespace</span> <span class="n">std</span><span class="p">;</span>
+
+<span class="kt">int</span> <span class="nf">main</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">cout</span> <span class="o">&lt;&lt;</span> <span class="s">"Hello World!"</span><span class="p">;</span>
+  <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="c1">// prints 'Hi, Tom' to STDOUT.</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">class</span> <span class="nc">Person</span><span class="p">:</span>
+  <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">age</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">age</span> <span class="o">=</span> <span class="n">age</span>
+
+<span class="n">p1</span> <span class="o">=</span> <span class="nc">Person</span><span class="p">(</span><span class="sh">"</span><span class="s">John</span><span class="sh">"</span><span class="p">,</span> <span class="mi">36</span><span class="p">)</span>
+
+<span class="nf">print</span><span class="p">(</span><span class="n">p1</span><span class="p">.</span><span class="n">name</span><span class="p">)</span>
+<span class="nf">print</span><span class="p">(</span><span class="n">p1</span><span class="p">.</span><span class="n">age</span><span class="p">)</span>
+</code></pre></div></div>]]></content><author><name>Jeffrey</name></author><category term="jekyll" /><category term="jekyll" /><category term="theme" /><category term="yat" /><summary type="html"><![CDATA[You’ll find this post in your _posts directory. Go ahead and edit it and re-build the site to see your changes. You can rebuild the site in many different ways, but the most common way is to run jekyll serve, which launches a web server and auto-regenerates your site when a file is updated.]]></summary></entry><entry><title type="html">An exhibit of Markdown</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/12/05/an-exhibit-of-markdown.html" rel="alternate" type="text/html" title="An exhibit of Markdown" /><published>2018-12-05T00:00:00+00:00</published><updated>2018-12-05T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/12/05/an-exhibit-of-markdown</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/12/05/an-exhibit-of-markdown.html"><![CDATA[<p>This note demonstrates some of what <a href="https://daringfireball.net/projects/markdown/">Markdown</a> is capable of doing.</p>
+
+<h2 id="an-exhibit-of-markdown">An exhibit of Markdown</h2>
+
+<p><em>Note: Feel free to play with this page. Unlike regular notes, this doesn’t automatically save itself.</em></p>
+
+<h2 id="basic-formatting">Basic formatting</h2>
+
+<p>Paragraphs can be written like so. A paragraph is the basic block of Markdown. A paragraph is what text will turn into when there is no reason it should become anything else.</p>
+
+<p>Paragraphs must be separated by a blank line. Basic formatting of <em>italics</em> and <strong>bold</strong> is supported. This <em>can be <strong>nested</strong> like</em> so.</p>
+
+<h2 id="lists">Lists</h2>
+
+<h3 id="ordered-list">Ordered list</h3>
+
+<ol>
+  <li>Item 1</li>
+  <li>A second item</li>
+  <li>Number 3</li>
+  <li>Ⅳ</li>
+</ol>
+
+<p><em>Note: the fourth item uses the Unicode character for <a href="https://www.fileformat.info/info/unicode/char/2163/index.htm">Roman numeral four</a>.</em></p>
+
+<h3 id="unordered-list">Unordered list</h3>
+
+<ul>
+  <li>An item</li>
+  <li>Another item</li>
+  <li>Yet another item</li>
+  <li>And there’s more…</li>
+</ul>
+
+<h2 id="paragraph-modifiers">Paragraph modifiers</h2>
+
+<h3 id="code-block">Code block</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Code blocks are very useful for developers and other people who look at code or other things that are written in plain text. As you can see, it uses a fixed-width font.
+</code></pre></div></div>
+
+<p>You can also make <code class="language-plaintext highlighter-rouge">inline code</code> to add code into other things.</p>
+
+<h3 id="quote">Quote</h3>
+
+<blockquote>
+  <p>Here is a quote. What this is should be self explanatory. Quotes are automatically indented when they are used.</p>
+</blockquote>
+
+<h2 id="headings">Headings</h2>
+
+<p>There are six levels of headings. They correspond with the six levels of HTML headings. You’ve probably noticed them already in the page. Each level down uses one more hash character.</p>
+
+<h3 id="headings-can-also-contain-formatting">Headings <em>can</em> also contain <strong>formatting</strong></h3>
+
+<h3 id="they-can-even-contain-inline-code">They can even contain <code class="language-plaintext highlighter-rouge">inline code</code></h3>
+
+<p>Of course, demonstrating what headings look like messes up the structure of the page.</p>
+
+<p>I don’t recommend using more than three or four levels of headings here, because, when you’re smallest heading isn’t too small, and you’re largest heading isn’t too big, and you want each size up to look noticeably larger and more important, there there are only so many sizes that you can use.</p>
+
+<h2 id="urls">URLs</h2>
+
+<p>URLs can be made in a handful of ways:</p>
+
+<ul>
+  <li>A named link to <a href="https://www.markitdown.net/">MarkItDown</a>. The easiest way to do these is to select what you want to make a link and hit <code class="language-plaintext highlighter-rouge">Ctrl+L</code>.</li>
+  <li>Another named link to <a href="https://www.markitdown.net/">MarkItDown</a></li>
+  <li>Sometimes you just want a URL like <a href="https://www.markitdown.net/">https://www.markitdown.net/</a>.</li>
+</ul>
+
+<h2 id="horizontal-rule">Horizontal rule</h2>
+
+<p>A horizontal rule is a line that goes across the middle of the page.</p>
+
+<hr />
+
+<p>It’s sometimes handy for breaking things up.</p>
+
+<h2 id="images">Images</h2>
+
+<p>Markdown can also contain images. I’ll need to add something here sometime.</p>
+
+<h2 id="finally">Finally</h2>
+
+<p>There’s actually a lot more to Markdown than this. See the official <a href="https://daringfireball.net/projects/markdown/basics">introduction</a> and <a href="https://daringfireball.net/projects/markdown/syntax">syntax</a> for more information. However, be aware that this is not using the official implementation, and this might work subtly differently in some of the little things.</p>]]></content><author><name>Sino</name></author><category term="markdown" /><category term="example" /><category term="markdown" /><summary type="html"><![CDATA[This note demonstrates some of what Markdown is capable of doing.]]></summary></entry><entry><title type="html">Mathjax Test</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/05/26/mathjax-test.html" rel="alternate" type="text/html" title="Mathjax Test" /><published>2018-05-26T00:00:00+00:00</published><updated>2018-05-26T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/05/26/mathjax-test</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/markdown/2018/05/26/mathjax-test.html"><![CDATA[<ul>
+  <li>A safe integer is an integer that
+    <ul>
+      <li>can be exactly represented as an IEEE-754 double precision number, and</li>
+      <li>whose IEEE-75 representation cannot be the result of rounding any other integer to fit the IEEE-754 representation</li>
+    </ul>
+  </li>
+  <li>For example, $ 2 ^ {53} - 1 $ is a safe integer,
+    <ul>
+      <li>it can be exactly represented .</li>
+    </ul>
+  </li>
+</ul>]]></content><author><name>Sino</name></author><category term="markdown" /><category term="test" /><summary type="html"><![CDATA[A safe integer is an integer that can be exactly represented as an IEEE-754 double precision number, and whose IEEE-75 representation cannot be the result of rounding any other integer to fit the IEEE-754 representation For example, $ 2 ^ {53} - 1 $ is a safe integer, it can be exactly represented .]]></summary></entry></feed>

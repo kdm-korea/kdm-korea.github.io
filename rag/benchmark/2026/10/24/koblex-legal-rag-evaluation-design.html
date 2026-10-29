@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-translate-customization" content="108d9124921d80c3-80e20d618ff053c8-g4f02ec6f3dba68b7-c">
+<!-- Begin Jekyll SEO tag v2.9.1 -->
+<title>KoBLEX 기반 법률 검색 테스트셋 생성 | Sino</title>
+<meta name="generator" content="Jekyll v4.4.1">
+<meta property="og:title" content="KoBLEX 기반 법률 검색 테스트셋 생성">
+<meta name="author" content="Sino">
+<meta property="og:locale" content="en_US">
+<meta name="description" content="법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.">
+<meta name="twitter:description" property="og:description" content="법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.">
+<link rel="canonical" href="https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html">
+<meta property="og:url" content="https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html">
+<meta property="og:site_name" content="Sino">
+<meta property="og:type" content="article">
+<meta property="article:published_time" content="2026-10-24T00:00:00+00:00">
+<meta property="article:modified_time" content="2026-10-24T00:00:00+00:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="KoBLEX 기반 법률 검색 테스트셋 생성">
+<meta name="google-site-verification" content="RKvmYbDZxM9Aj_4L3bMcZIAlJOtCkyhNZb8zhskM5o0">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Sino"},"dateModified":"2026-10-24T00:00:00+00:00","datePublished":"2026-10-24T00:00:00+00:00","description":"법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.","headline":"KoBLEX 기반 법률 검색 테스트셋 생성","mainEntityOfPage":{"@type":"WebPage","@id":"https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html"},"url":"https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="icon" href="">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/typeface-noto-sans@0.0.72/index.min.css">
+  <link rel="stylesheet" href="/jekyll-theme-yat/assets/css/main.css">
+  <script src="/jekyll-theme-yat/assets/js/main.js"></script><link type="application/atom+xml" rel="alternate" href="https://kdm-korea.github.io/jekyll-theme-yat/feed.xml" title="Sino">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/default.min.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script charset="UTF-8" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/languages/go.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+// Init highlight js
+document.addEventListener('DOMContentLoaded', function(event) {
+  var els = document.querySelectorAll('pre code')
+
+  function addLangData(block) {
+    var outer = block.parentElement.parentElement.parentElement;
+    var lang = block.getAttribute('data-lang');
+    for (var i = 0; i < outer.classList.length; i++) {
+      var cls = outer.classList[i];
+      if (cls.startsWith('language-')) {
+        lang = cls;
+        break;
+      }
+    }
+    if (!lang) {
+      cls = block.getAttribute('class');
+      lang = cls ? cls.replace('hljs ', '') : '';
+    }
+    if (lang.startsWith('language-')) {
+      lang = lang.substr(9);
+    }
+    block.setAttribute('class', 'hljs ' + lang);
+    block.parentNode.setAttribute('data-lang', lang);
+  }
+
+  function addBadge(block) {
+    var enabled = ('true' || 'true').toLowerCase();
+    if (enabled == 'true') {
+      var pre = block.parentElement;
+      pre.classList.add('badge');
+    }
+  }
+
+  function handle(block) {
+    addLangData(block);
+    addBadge(block)
+    hljs.highlightBlock(block);
+  }
+
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    handle(el);
+  }
+});
+</script>
+
+<style>
+  /* code language badge */
+  pre.badge::before {
+    content: attr(data-lang);
+    color: #fff;
+    background-color: #ff4e00;
+    padding: 0 .5em;
+    border-radius: 0 2px;
+    text-transform: uppercase;
+    text-align: center;
+    min-width: 32px;
+    display: inline-block;
+    position: absolute;
+    right: 0;
+  }
+
+  /* fix wrong badge display for firefox browser */
+  code > table pre::before {
+    display: none;
+  }
+</style>
+
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<header class="site-header " role="banner">
+
+  <div class="wrapper">
+    <div class="site-header-inner">
+<span class="site-brand"><a class="site-brand-inner" rel="author" href="/jekyll-theme-yat/">
+  <img class="site-favicon" title="Sino" src="" onerror="this.style.display='none'">
+  Sino
+</a>
+</span><nav class="site-nav">
+          <input type="checkbox" id="nav-trigger" class="nav-trigger">
+          <label for="nav-trigger">
+            <span class="menu-icon">
+              <svg viewbox="0 0 18 15" width="18px" height="15px">
+                <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"></path>
+              </svg>
+            </span>
+          </label>
+
+          <div class="trigger">
+<a class="page-link" href="/jekyll-theme-yat/about.html">ABOUT</a><a class="page-link" href="/jekyll-theme-yat/archives.html">ARCHIVES</a><a class="page-link" href="/jekyll-theme-yat/categories.html">CATEGORIES</a><a class="page-link" href="/jekyll-theme-yat/">HOME</a><a class="page-link" href="/jekyll-theme-yat/tags.html">TAGS</a>
+
+
+
+
+
+
+
+
+
+<span class="page-link">
+
+
+
+<div id="google_translate_element" style="display: none;">
+</div>
+
+<span class="ct-language">
+  <ul class="list-unstyled ct-language-dropdown">
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="en">
+          
+          <img src="https://cdn.countryflags.com/thumbs/united-states-of-america/flag-400.png" title="English">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="fr">
+          
+          <img src="https://cdn.countryflags.com/thumbs/france/flag-400.png" title="French">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="zh-CN">
+          
+          <img src="https://cdn.countryflags.com/thumbs/china/flag-400.png" title="Chinese(Simple)">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ja">
+          
+          <img src="https://cdn.countryflags.com/thumbs/japan/flag-400.png" title="Japanese">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ko">
+          
+          <img src="https://cdn.countryflags.com/thumbs/south-korea/flag-400.png" title="Korean">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ru">
+          
+          <img src="https://cdn.countryflags.com/thumbs/russia/flag-400.png" title="Russian">
+          
+        </a>
+      </li>
+    
+  </ul>
+</span>
+
+<script type="text/javascript">
+function googleTranslateElementInit() {
+  new google.translate.TranslateElement({
+    pageLanguage: 'en',
+    autoDisplay: false,
+    layout: google.translate.TranslateElement.InlineLayout.VERTICAL
+  }, 'google_translate_element');
+
+  // Links to cross-origin destinations are unsafe
+  var gll = document.getElementsByClassName('goog-logo-link')[0];
+  if (gll) {
+    gll.setAttribute('rel', 'noopener');
+  }
+
+  function restoreLang() {
+    var iframe = document.getElementsByClassName('goog-te-banner-frame')[0];
+    if (!iframe) return;
+
+    var innerDoc = iframe.contentDocument || iframe.contentWindow.document;
+    var restore_el = innerDoc.getElementsByTagName("button");
+
+    for (var i = 0; i < restore_el.length; i++) {
+      if (restore_el[i].id.indexOf("restore") >= 0) {
+        restore_el[i].click();
+        var close_el = innerDoc.getElementsByClassName("goog-close-link");
+        close_el[0].click();
+        return;
+      }
+    }
+  }
+
+  function triggerHtmlEvent(element, eventName) {
+    var event;
+    if (document.createEvent) {
+      event = document.createEvent('HTMLEvents');
+      event.initEvent(eventName, true, true);
+      element.dispatchEvent(event);
+    } else {
+      event = document.createEventObject();
+      event.eventType = eventName;
+      element.fireEvent('on' + event.eventType, event);
+    }
+  }
+
+  var googleCombo = document.querySelector("select.goog-te-combo");
+  var langSelect = document.querySelector('.ct-language');
+  langSelect.addEventListener('click', function(event) {
+    if (!event.target) {
+      return;
+    }
+
+    var selected = document.querySelector('.ct-language .ct-language-selected');
+    if (selected) {
+      selected.classList.remove('ct-language-selected');
+    }
+
+    var target = event.target;
+    while (target && target !== langSelect ) {
+      if (target.matches('.lang-select')) {
+        break;
+      }
+      target = target.parentElement;
+    }
+
+    if (target && target.matches('.lang-select')) {
+      var lang = target.getAttribute('data-lang');
+      if (googleCombo.value == lang) {
+        restoreLang();
+      } else {
+        target.parentElement.classList.add('ct-language-selected');
+        googleCombo.value = lang;
+        triggerHtmlEvent(googleCombo, 'change');
+      }
+    }
+
+    event.preventDefault();
+  });
+}
+</script>
+
+<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</span>
+</div>
+        </nav>
+</div>
+  </div>
+</header>
+
+<script>
+  function initHeader() {
+    var lastScrollY = getScrollPos().y;
+    var documentElement = document.documentElement;
+
+    function storeScrollData() {
+      var y = getScrollPos().y;var scrollStatus = "";
+
+      if (y <= 0) {
+        scrollStatus = "top";
+      } else if ((window.innerHeight + y) >= document.body.offsetHeight) {
+        scrollStatus = "bottom";
+      } else {
+        var isScrollDown = (y - lastScrollY > 0) ? true : false;
+        scrollStatus = isScrollDown ? "down" : "up";
+      }
+
+      lastScrollY = y;
+      documentElement.setAttribute("data-scroll-status", scrollStatus);
+    }
+
+    window.addEventListener('scroll', function(e) {
+      storeScrollData();
+    });
+
+    storeScrollData();
+  }
+  document.addEventListener('DOMContentLoaded', initHeader);
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+  function hashLocate(hashValue) {
+    hashValue = hashValue.replace(/^.*#h-/, '');
+    hashValue = decodeURIComponent(hashValue);
+    var element = document.getElementById(hashValue);
+
+    if (!element) {
+      return;
+    }
+
+    var header = document.querySelector('header.site-header');
+    var headerRect = header.getBoundingClientRect();
+    var headerTop = Math.floor(headerRect.top);
+    var headerHeight = Math.floor(headerRect.height);
+    var scrollPos = getScrollPos();
+    var offsetY = element.offsetTop - (headerTop + headerHeight + 20);
+
+    if (offsetY == scrollPos.y) {
+      return;
+    }
+
+    if (headerTop == 0  && offsetY > scrollPos.y) {
+      offsetY += headerHeight + 2;
+    } else if (headerTop < 0  && offsetY < scrollPos.y) {
+      offsetY -= headerHeight - 2;
+    }
+
+    smoothScrollTo(offsetY);
+  }
+
+  // The first event occurred
+  window.addEventListener('load', function(event) {
+    if (window.location.hash) {
+      hashLocate(window.location.hash);
+    }
+  });
+
+  // The first event occurred
+  window.addEventListener('click', function(event) {
+    if (event.target.tagName.toLowerCase() == 'a') {
+      hashLocate(event.target.getAttribute('href'));
+    }
+  });
+</script>
+<div class="theme-toggle">
+  <input type="checkbox" id="theme-switch">
+  <label for="theme-switch">
+    <div class="toggle"></div>
+    <div class="names">
+      <p class="light">Light</p>
+      <p class="dark">Dark</p>
+    </div>
+  </label>
+</div>
+
+
+
+
+<script>
+  (function() {
+    var sw = document.getElementById('theme-switch');
+    var html = document.getElementsByTagName('html')[0];
+    var nightModeOption = ('auto' || 'auto').toLowerCase();
+    var storage = nightModeOption === 'manual'
+        ? localStorage
+        : sessionStorage;
+    var themeData = loadThemeData();
+
+    function saveThemeData(data) {
+      storage.setItem('theme', JSON.stringify(data));
+    }
+
+    function loadThemeData() {
+      var data = storage.getItem('theme');
+      try {
+        data = JSON.parse(data ? data : '');
+      } catch(e) {
+        data = { nightShift: undefined, autoToggleAt: 0 };
+        saveThemeData(data);
+      }
+      return data;
+    }
+
+    function handleThemeToggle(nightShift) {
+      themeData.nightShift = nightShift;
+      saveThemeData(themeData);
+      html.dataset.theme = nightShift ? 'dark' : 'light';
+      setTimeout(function() {
+        sw.checked = nightShift ? true : false;
+      }, 50);
+    }
+
+    function autoThemeToggle() {
+      // Next time point of theme toggle
+      var now = new Date();
+      var toggleAt = new Date();
+      var hours = now.getHours();
+      var nightShift = hours >= 19 || hours <=7;
+
+      if (nightShift) {
+        if (hours > 7) {
+          toggleAt.setDate(toggleAt.getDate() + 1);
+        }
+        toggleAt.setHours(7);
+      } else {
+        toggleAt.setHours(19);
+      }
+
+      toggleAt.setMinutes(0);
+      toggleAt.setSeconds(0);
+      toggleAt.setMilliseconds(0)
+
+      var delay = toggleAt.getTime() - now.getTime();
+
+      // auto toggle theme mode
+      setTimeout(function() {
+        handleThemeToggle(!nightShift);
+      }, delay);
+
+      return {
+        nightShift: nightShift,
+        toggleAt: toggleAt.getTime()
+      };
+    }
+
+    // Listen the theme toggle event
+    sw.addEventListener('change', function(event) {
+      handleThemeToggle(event.target.checked);
+    });
+
+    if (nightModeOption == 'auto') {
+      var data = autoThemeToggle();
+
+      // Toggle theme by local setting
+      if (data.toggleAt > themeData.autoToggleAt) {
+        themeData.autoToggleAt = data.toggleAt;
+        handleThemeToggle(data.nightShift);
+      } else {
+        handleThemeToggle(themeData.nightShift);
+      }
+    } else if (nightModeOption == 'manual') {
+      handleThemeToggle(themeData.nightShift);
+    } else {
+      var nightShift = themeData.nightShift;
+      if (nightShift === undefined) {
+        nightShift = nightModeOption === 'on';
+      }
+      handleThemeToggle(nightShift);
+    }
+  })();
+</script>
+<div id="click-to-top" class="click-to-top">
+  <i class="fa fa-arrow-up"></i>
+</div>
+<script>
+  (function () {
+    const clickToTop = document.getElementById('click-to-top');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 100) {
+        clickToTop.classList.add('show')
+      }else {
+        clickToTop.classList.remove('show')
+      }
+    });
+    clickToTop.addEventListener('click', () => {
+      window.smoothScrollTo(0);
+    });
+  })();
+</script>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <div class="framework">
+  <section class="main">
+
+     <div class="post">
+  <section>
+
+
+
+
+
+
+
+
+
+<header class="post-header">
+  <h1 class="post-title p-name" itemprop="name headline">KoBLEX 기반 법률 검색 테스트셋 생성</h1>
+  <h2 class="post-subtitle">질문의 정답 근거를 법령에 매핑하고 개발용·최종 평가용 데이터로 나누기</h2>
+
+  <p class="post-meta">
+    <time class="dt-published" datetime="2026-10-24T00:00:00+00:00" itemprop="datePublished"><i class="fa fa-calendar"></i> Oct 24, 2026
+    </time>
+
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <span class="post-reading-time left-vsplit"><i class="fa fa-clock-o"></i> About 7 mins</span>
+  </p>
+<div class="post-tags">
+<a class="post-tag" href="/jekyll-theme-yat/tags.html#RAG">#RAG</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#KoBLEX">#KoBLEX</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#%EB%B2%95%EB%A5%A0%EA%B2%80%EC%83%89">#법률검색</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%85%8B">#테스트셋</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#%EB%8D%B0%EC%9D%B4%ED%84%B0%EB%A7%A4%ED%95%91">#데이터매핑</a>
+</div></header>
+<article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+    <div class="post-content e-content" itemprop="articleBody">
+
+      <p>법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.</p>
+
+<p>평가 가능한 222문항을 개발용 <code class="language-plaintext highlighter-rouge">dev</code> 44문항과 최종 평가용 <code class="language-plaintext highlighter-rouge">test</code> 178문항으로 나눴다. 이 글은 원본 데이터에서 근거를 연결하고 두 분할을 생성하는 과정을 다룬다.</p>
+
+<h2 id="1-원본-데이터와-연결의-문제">1. 원본 데이터와 연결의 문제</h2>
+
+<p>KoBLEX는 한국어 법률 질문에 대해 여러 법조문을 연결하는 추론을 평가하기 위한 벤치마크다. 공식 저장소에 따르면 사건 시나리오 기반 질문·답변 226개와 이를 뒷받침하는 법조문을 포함하며, LLM 기반 생성과 전문가 수정을 결합해 구축했다. 한국어 법령 코퍼스도 별도로 제공한다. <a href="https://github.com/daehuikim/KoBLEX">KoBLEX 공식 저장소</a></p>
+
+<p>사용한 원본은 질문·답변·근거 데이터인 <code class="language-plaintext highlighter-rouge">JihyungL/KoBLEX-koblex</code>와 법령 코퍼스인 <code class="language-plaintext highlighter-rouge">JihyungL/KoBLEX-statute</code>다. 질문 226개와 법령 233,544행을 사용했다.</p>
+
+<ul>
+  <li>
+<strong>QA(질문·답변 데이터)</strong>: 질문 ID인 <code class="language-plaintext highlighter-rouge">id</code>, 사건 배경 <code class="language-plaintext highlighter-rouge">background</code>, 질문 <code class="language-plaintext highlighter-rouge">question</code>, 참고 답변 <code class="language-plaintext highlighter-rouge">answer</code>, 정답 근거 목록 <code class="language-plaintext highlighter-rouge">contexts</code>로 구성된다.</li>
+  <li>
+<strong>법령 코퍼스</strong>: 법령·조문을 나타내는 <code class="language-plaintext highlighter-rouge">index</code>, 조·항·호 위치인 <code class="language-plaintext highlighter-rouge">hierarchy</code>, 해당 본문인 <code class="language-plaintext highlighter-rouge">content</code>로 구성된다. QA의 각 근거에도 이 세 필드가 있다.</li>
+</ul>
+
+<p>검색 입력에는 <strong>배경과 질문만</strong> 사용한다. 참고 답변과 정답 근거는 평가용으로 보관한다.</p>
+
+<p>두 원본에는 공통 고유 ID가 없다. <code class="language-plaintext highlighter-rouge">index</code>는 여러 항·호에서 반복되고, 같은 <code class="language-plaintext highlighter-rouge">hierarchy</code>에 서로 다른 본문이 있기도 하다. 근거 하나가 여러 법령 항목을 합친 본문인 경우도 있어, 필드 하나로 조인하는 대신 실제 본문을 검증해야 했다.</p>
+
+<h2 id="2-근거와-법령의-매핑-기준">2. 근거와 법령의 매핑 기준</h2>
+
+<p>먼저 <code class="language-plaintext highlighter-rouge">index</code>, <code class="language-plaintext highlighter-rouge">hierarchy</code>, <code class="language-plaintext highlighter-rouge">content</code>가 모두 같은 법령 행만 병합했다. 원본 행 위치를 보존하면서 209,564개 항목으로 정리하고 각각 <code class="language-plaintext highlighter-rouge">unit_id</code>를 부여했다.</p>
+
+<p>QA의 <code class="language-plaintext highlighter-rouge">contexts</code>는 근거별로 펼쳐 다음 순서로 매핑했다.</p>
+
+<ol>
+  <li>같은 <code class="language-plaintext highlighter-rouge">index</code>의 후보에서 제목·구조 항목을 제외하고, 계층과 전체 본문이 일치하는 항목이 하나면 연결한다.</li>
+  <li>단일 항목으로 연결되지 않으면 같은 조문의 본문 항목들을 원본 순서로 합쳐 비교한다. 근거의 계층과 같은 본문 항목이 존재하고, 각 하위 계층의 후보가 하나일 때만 허용한다.</li>
+  <li>그래도 일치하지 않으면 QA 근거의 등장 순서로 합쳐 비교한다.</li>
+  <li>전체 본문이 다르거나 후보가 모호하면 미해결로 남긴다.</li>
+</ol>
+
+<p>비교에는 연속된 공백만 정리하고 숫자·구두점·개정 표기는 유지했다. 매핑 장부는 각 근거의 연결 대상과 판정 이유를 기록한 파일이다. 이 규칙으로 직접 생성했으며, LLM 추론이나 공식 매핑 파일을 사용하지 않았다.</p>
+
+<h2 id="3-실제-데이터의-매핑-과정">3. 실제 데이터의 매핑 과정</h2>
+
+<p><code class="language-plaintext highlighter-rouge">qa_19_1hop_28</code>은 상품 운송 지연으로 발생한 손해배상을 언제까지 청구할 수 있는지 묻는 질문이다. 아래는 이 질문과 첫 번째 근거에서 필요한 필드만 발췌한 예시다. 배경은 요약했고 본문의 <code class="language-plaintext highlighter-rouge">…</code>는 표시를 위한 생략이다. <strong>실제 매핑은 생략 없는 전체 본문으로 비교했다.</strong></p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"qa_19_1hop_28"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"background"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상품이 늦게 도착해 손해가 발생했고, 인도 후 청구 가능 기간을 묻는 상황 [요약]"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"question"</span><span class="p">:</span><span class="w"> </span><span class="s2">"을은 갑에 대한 손해배상청구권을 어느 시점까지 행사할 수 있는가?"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"contexts"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"index"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상법 814조  운송인의 채권ㆍ채무의 소멸"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"hierarchy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상법 814조  운송인의 채권ㆍ채무의 소멸 1항"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"①운송인의 송하인 또는 수하인에 대한 채권 및 채무는 …"</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>법령 코퍼스에는 같은 <code class="language-plaintext highlighter-rouge">index</code>를 가진 다음 네 행이 있다. 원본 행 번호는 0부터 시작한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>원본 행</th>
+      <th>
+<code class="language-plaintext highlighter-rouge">hierarchy</code>의 위치</th>
+      <th>
+<code class="language-plaintext highlighter-rouge">content</code> 일부</th>
+      <th>판정</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>116390</td>
+      <td>제814조</td>
+      <td>제814조(운송인의 채권ㆍ채무의 소멸)</td>
+      <td>제목이므로 제외</td>
+    </tr>
+    <tr>
+      <td>116391</td>
+      <td>제814조 1항</td>
+      <td>①운송인의 송하인 또는 수하인에 대한…</td>
+      <td>근거와 계층·전체 본문 일치</td>
+    </tr>
+    <tr>
+      <td>116392</td>
+      <td>제814조 2항</td>
+      <td>②운송인이 인수한 운송을 다시 제3자에게…</td>
+      <td>다른 항</td>
+    </tr>
+    <tr>
+      <td>116393</td>
+      <td>제814조 3항</td>
+      <td>③제2항의 경우에 있어서 재판상 청구를…</td>
+      <td>다른 항</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><code class="language-plaintext highlighter-rouge">index</code>만 보면 네 행이 모두 후보지만, 계층과 본문을 검증하면 1항으로 연결된다. 다음 도식의 <code class="language-plaintext highlighter-rouge">E1</code>과 <code class="language-plaintext highlighter-rouge">U1</code>은 실제 해시 ID를 줄여 쓴 별칭이다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/koblex-legal-evaluation-dataset/mapping.png" alt="실제 질문의 근거를 상법 제814조 1항에 연결하고 정답표를 만드는 과정"></p>
+
+<p><em>그림 1. 같은 조문의 후보 네 개 중 계층과 전체 본문이 일치하는 1항을 선택한다. E1·U1은 실제 ID의 별칭이고 본문은 그림에서만 생략했다.</em></p>
+
+<p>이 과정을 거치면 <strong>질문 → 근거 → 코퍼스의 법령 항목</strong> 관계를 ID로 조회할 수 있다. 이 사례에서는 해당 질문의 정답 근거가 법령 항목 U1에 연결된다.</p>
+
+<h2 id="4-정답표의-구조">4. 정답표의 구조</h2>
+
+<p>앞의 실제 사례는 근거 하나가 법령 한 항목에 연결된다. 검색 평가용 정답표인 qrels에는 여러 항목을 합쳐야 하는 관계도 저장한다. 다음은 별도의 가상 질문 Q2를 사용한 구조 예시다. 실제 사례의 별칭과 구분하기 위해 근거는 E2·E3, 법령은 U2·U3·U4로 표시했다.</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"Q2"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"E2"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"U2"</span><span class="p">,</span><span class="w"> </span><span class="s2">"U3"</span><span class="p">],</span><span class="w">
+    </span><span class="nl">"E3"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"U4"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>이 가상 질문 Q2에는 근거 E2와 E3가 필요하다. E2는 U2·U3의 전체 본문으로 구성되고 E3는 U4로 구성된다. 따라서 항목 ID뿐 아니라 해당 근거에 필요한 본문까지 정답 기준에 포함된다.</p>
+
+<p>생성한 파일의 필드와 연결 관계는 다음과 같다. JSON·JSONL 데이터를 테이블 형태로 표현했으며, 화살표의 숫자는 연결 개수를 뜻한다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/koblex-legal-evaluation-dataset/data-relationship.png" alt="질문·근거·법령·분할 데이터의 필드와 연결 키를 나타낸 테이블 형태의 관계도"></p>
+
+<p><em>그림 2. 질문 하나에 여러 근거가 연결되고, 근거 하나는 여러 법령 항목으로 구성될 수 있다. ‘근거와 법령 연결’은 <code class="language-plaintext highlighter-rouge">evidence.unit_ids</code> 배열을 펼친 표현이며 별도 저장 파일은 아니다.</em></p>
+
+<p>각 파일의 저장 내용과 조회 키를 요약하면 다음과 같다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>파일</th>
+      <th>저장 내용</th>
+      <th>연결 키</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queries.jsonl</code></td>
+      <td>질문과 검색 입력, 참고 답변, 평가 가능 상태</td>
+      <td><code class="language-plaintext highlighter-rouge">query_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">units.jsonl</code></td>
+      <td>법령 항목의 본문과 원본 위치</td>
+      <td><code class="language-plaintext highlighter-rouge">unit_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">evidence.jsonl</code></td>
+      <td>원본 근거와 매핑 결과·이유</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">query_id</code>, <code class="language-plaintext highlighter-rouge">evidence_id</code>, <code class="language-plaintext highlighter-rouge">unit_ids</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">qrels.json</code></td>
+      <td>평가 가능한 질문의 정답 연결</td>
+      <td>질문 → 근거 → 법령 ID 목록</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">splits.jsonl</code></td>
+      <td>개발·최종 평가·보류 구분</td>
+      <td><code class="language-plaintext highlighter-rouge">query_id</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>매핑 장부에는 연결 결과와 판정 이유를 남겨 추적할 수 있게 했다.</p>
+
+<h2 id="5-테스트셋-생성-결과와-보류-기준">5. 테스트셋 생성 결과와 보류 기준</h2>
+
+<p>근거가 하나라도 미해결이면 질문 전체를 보류했다. 일부 근거만 정답으로 남기면 질문이 원래보다 쉬워질 수 있기 때문이다. 마침표 차이나 같은 조문에서 재구성할 수 없는 본문도 임의로 수정하지 않고 실패 이유를 기록했다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>생성 결과</th>
+      <th style="text-align: right">수치</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>원본 질문 / 근거 주석</td>
+      <td style="text-align: right">226 / 443</td>
+    </tr>
+    <tr>
+      <td>단일 법령 항목과 일치</td>
+      <td style="text-align: right">410</td>
+    </tr>
+    <tr>
+      <td>여러 항목을 원본 순서로 결합해 일치</td>
+      <td style="text-align: right">24</td>
+    </tr>
+    <tr>
+      <td>QA 근거의 등장 순서로 결합해 일치</td>
+      <td style="text-align: right">5</td>
+    </tr>
+    <tr>
+      <td>미해결 근거</td>
+      <td style="text-align: right">4</td>
+    </tr>
+    <tr>
+      <td>평가 가능 / 보류 질문</td>
+      <td style="text-align: right">222 / 4</td>
+    </tr>
+    <tr>
+      <td>qrels에 포함된 근거 연결</td>
+      <td style="text-align: right">434</td>
+    </tr>
+    <tr>
+      <td>dev / test / holdout 질문</td>
+      <td style="text-align: right">44 / 178 / 4</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>qrels의 434건은 전체 근거 443건에서 미해결 4건과 보류 질문에 속한 나머지 근거 5건을 제외한 결과다. 통계와 검증 결과는 <a href="https://github.com/kdm-korea/llm-benchmark/blob/cbc43bbf59d3e96eca425a5d5330de8e5f28afc2/docs/benchmarks/koblex/audit-summary.json">audit summary</a>에 기록했다.</p>
+
+<p>개발·설정 조정용 dev, 최종 평가용 test, 미해결 질문 보관용 holdout으로 분할했다. 같은 질문 ID 계열이나 유사한 배경·질문을 가진 항목을 그룹으로 묶어 dev와 test에 걸치지 않게 했다. 다만 두 분할은 같은 법령 코퍼스를 사용하며, 공유하는 정답 근거가 10개 있다. 처음 보는 법령에 대한 일반화 성능을 측정하는 구성은 아니다.</p>
+
+<h2 id="6-생성-범위와-한계">6. 생성 범위와 한계</h2>
+
+<p>생성한 결과는 질문, 검색 대상 법령, 정답 근거의 연결, 개발·최종 평가용 분할이다. 검증 대상은 이 데이터의 매핑과 분할이며, 실제 검색이나 답변 생성의 성능은 측정하지 않았다.</p>
+
+<p>이 매핑은 원본에 주석된 근거와 코퍼스 본문이 일치하는지 검증한 결과다. 법령의 적용 시점이나 법률적 정답성을 독립적인 전문가가 검수한 것은 아니다. 원본의 구조화된 시점 정보도 충분하지 않아 추가 검토가 필요하다.</p>
+
+<p>자세한 필드와 연결 구조는 <a href="https://github.com/kdm-korea/llm-benchmark/blob/ce6a6f4a5cf84d1baadc3ad77b0a2ea7523c6fe2/docs/benchmarks/koblex/data-flow.md">데이터 흐름 문서</a>에 정리했다.</p>
+
+
+    </div>
+
+</article>
+<div class="post-nav">
+<a class="previous" href="/jekyll-theme-yat/rag/embedding/2026/10/23/legal-embedding-recall-benchmark.html" title="한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교">한국어 판례 검색을 위한 임베딩 모델의...</a><a class="next" href="/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">법률 RAG 개발을 위한 연구 방향과...</a>
+</div>
+<div class="post-related">
+      <div>Related Articles</div>
+      <ul>
+        <li><a class="post-link" href="/jekyll-theme-yat/example/2017/12/08/mermaid-example.html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">Mermaid example</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/markdown/2018/05/26/mathjax-test.html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">Mathjax Test</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/markdown/2018/12/05/an-exhibit-of-markdown.html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">An exhibit of Markdown</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add.html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">Elasticsearch Cluster node 증설</a></li>
+</ul>
+    </div>
+<div class="post-comments"></div></section>
+</div>
+
+
+  </section>
+  <section class="sidebar" style="margin-left: 15px;">
+    <!-- Get sidebar items --></section>
+</div>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins>
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
+
+  <data class="u-url" href="/jekyll-theme-yat/"></data>
+
+  <div class="wrapper">
+    <div class="site-footer-inner">
+<div>Unpublished Work <span class="copyleft">©</span> 2017-2026 Sino</div>
+      <div>Powered by <a title="Jekyll is a simple, blog-aware, static site
+      generator." href="https://jekyllrb.com/">Jekyll</a> &amp; <a title="Yat, yet
+      another theme." href="https://github.com/jeffreytse/jekyll-theme-yat">Yat Theme</a>.</div>
+      <div class="footer-col rss-subscribe">Subscribe <a href="/jekyll-theme-yat/feed.xml">via RSS</a>
+</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

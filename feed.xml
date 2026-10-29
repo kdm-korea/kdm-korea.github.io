@@ -1,0 +1,1712 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.4.1">Jekyll</generator><link href="https://kdm-korea.github.io/jekyll-theme-yat/feed.xml" rel="self" type="application/atom+xml" /><link href="https://kdm-korea.github.io/jekyll-theme-yat/" rel="alternate" type="text/html" /><updated>2026-10-29T08:06:58+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/feed.xml</id><title type="html">Sino</title><subtitle>Write an awesome description for your new site here. You can edit this line in _config.yml. It will appear in your document head meta (for Google search results) and in your feed.xml site description.</subtitle><author><name>Sino</name></author><entry><title type="html">KoBLEX 기반 법률 검색 테스트셋 생성</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html" rel="alternate" type="text/html" title="KoBLEX 기반 법률 검색 테스트셋 생성" /><published>2026-10-24T00:00:00+00:00</published><updated>2026-10-24T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html"><![CDATA[<p>법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.</p>
+
+<p>평가 가능한 222문항을 개발용 <code class="language-plaintext highlighter-rouge">dev</code> 44문항과 최종 평가용 <code class="language-plaintext highlighter-rouge">test</code> 178문항으로 나눴다. 이 글은 원본 데이터에서 근거를 연결하고 두 분할을 생성하는 과정을 다룬다.</p>
+
+<h2 id="1-원본-데이터와-연결의-문제">1. 원본 데이터와 연결의 문제</h2>
+
+<p>KoBLEX는 한국어 법률 질문에 대해 여러 법조문을 연결하는 추론을 평가하기 위한 벤치마크다. 공식 저장소에 따르면 사건 시나리오 기반 질문·답변 226개와 이를 뒷받침하는 법조문을 포함하며, LLM 기반 생성과 전문가 수정을 결합해 구축했다. 한국어 법령 코퍼스도 별도로 제공한다. <a href="https://github.com/daehuikim/KoBLEX">KoBLEX 공식 저장소</a></p>
+
+<p>사용한 원본은 질문·답변·근거 데이터인 <code class="language-plaintext highlighter-rouge">JihyungL/KoBLEX-koblex</code>와 법령 코퍼스인 <code class="language-plaintext highlighter-rouge">JihyungL/KoBLEX-statute</code>다. 질문 226개와 법령 233,544행을 사용했다.</p>
+
+<ul>
+  <li><strong>QA(질문·답변 데이터)</strong>: 질문 ID인 <code class="language-plaintext highlighter-rouge">id</code>, 사건 배경 <code class="language-plaintext highlighter-rouge">background</code>, 질문 <code class="language-plaintext highlighter-rouge">question</code>, 참고 답변 <code class="language-plaintext highlighter-rouge">answer</code>, 정답 근거 목록 <code class="language-plaintext highlighter-rouge">contexts</code>로 구성된다.</li>
+  <li><strong>법령 코퍼스</strong>: 법령·조문을 나타내는 <code class="language-plaintext highlighter-rouge">index</code>, 조·항·호 위치인 <code class="language-plaintext highlighter-rouge">hierarchy</code>, 해당 본문인 <code class="language-plaintext highlighter-rouge">content</code>로 구성된다. QA의 각 근거에도 이 세 필드가 있다.</li>
+</ul>
+
+<p>검색 입력에는 <strong>배경과 질문만</strong> 사용한다. 참고 답변과 정답 근거는 평가용으로 보관한다.</p>
+
+<p>두 원본에는 공통 고유 ID가 없다. <code class="language-plaintext highlighter-rouge">index</code>는 여러 항·호에서 반복되고, 같은 <code class="language-plaintext highlighter-rouge">hierarchy</code>에 서로 다른 본문이 있기도 하다. 근거 하나가 여러 법령 항목을 합친 본문인 경우도 있어, 필드 하나로 조인하는 대신 실제 본문을 검증해야 했다.</p>
+
+<h2 id="2-근거와-법령의-매핑-기준">2. 근거와 법령의 매핑 기준</h2>
+
+<p>먼저 <code class="language-plaintext highlighter-rouge">index</code>, <code class="language-plaintext highlighter-rouge">hierarchy</code>, <code class="language-plaintext highlighter-rouge">content</code>가 모두 같은 법령 행만 병합했다. 원본 행 위치를 보존하면서 209,564개 항목으로 정리하고 각각 <code class="language-plaintext highlighter-rouge">unit_id</code>를 부여했다.</p>
+
+<p>QA의 <code class="language-plaintext highlighter-rouge">contexts</code>는 근거별로 펼쳐 다음 순서로 매핑했다.</p>
+
+<ol>
+  <li>같은 <code class="language-plaintext highlighter-rouge">index</code>의 후보에서 제목·구조 항목을 제외하고, 계층과 전체 본문이 일치하는 항목이 하나면 연결한다.</li>
+  <li>단일 항목으로 연결되지 않으면 같은 조문의 본문 항목들을 원본 순서로 합쳐 비교한다. 근거의 계층과 같은 본문 항목이 존재하고, 각 하위 계층의 후보가 하나일 때만 허용한다.</li>
+  <li>그래도 일치하지 않으면 QA 근거의 등장 순서로 합쳐 비교한다.</li>
+  <li>전체 본문이 다르거나 후보가 모호하면 미해결로 남긴다.</li>
+</ol>
+
+<p>비교에는 연속된 공백만 정리하고 숫자·구두점·개정 표기는 유지했다. 매핑 장부는 각 근거의 연결 대상과 판정 이유를 기록한 파일이다. 이 규칙으로 직접 생성했으며, LLM 추론이나 공식 매핑 파일을 사용하지 않았다.</p>
+
+<h2 id="3-실제-데이터의-매핑-과정">3. 실제 데이터의 매핑 과정</h2>
+
+<p><code class="language-plaintext highlighter-rouge">qa_19_1hop_28</code>은 상품 운송 지연으로 발생한 손해배상을 언제까지 청구할 수 있는지 묻는 질문이다. 아래는 이 질문과 첫 번째 근거에서 필요한 필드만 발췌한 예시다. 배경은 요약했고 본문의 <code class="language-plaintext highlighter-rouge">…</code>는 표시를 위한 생략이다. <strong>실제 매핑은 생략 없는 전체 본문으로 비교했다.</strong></p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"qa_19_1hop_28"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"background"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상품이 늦게 도착해 손해가 발생했고, 인도 후 청구 가능 기간을 묻는 상황 [요약]"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"question"</span><span class="p">:</span><span class="w"> </span><span class="s2">"을은 갑에 대한 손해배상청구권을 어느 시점까지 행사할 수 있는가?"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"contexts"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"index"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상법 814조  운송인의 채권ㆍ채무의 소멸"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"hierarchy"</span><span class="p">:</span><span class="w"> </span><span class="s2">"상법 814조  운송인의 채권ㆍ채무의 소멸 1항"</span><span class="p">,</span><span class="w">
+      </span><span class="nl">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"①운송인의 송하인 또는 수하인에 대한 채권 및 채무는 …"</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>법령 코퍼스에는 같은 <code class="language-plaintext highlighter-rouge">index</code>를 가진 다음 네 행이 있다. 원본 행 번호는 0부터 시작한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>원본 행</th>
+      <th><code class="language-plaintext highlighter-rouge">hierarchy</code>의 위치</th>
+      <th><code class="language-plaintext highlighter-rouge">content</code> 일부</th>
+      <th>판정</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>116390</td>
+      <td>제814조</td>
+      <td>제814조(운송인의 채권ㆍ채무의 소멸)</td>
+      <td>제목이므로 제외</td>
+    </tr>
+    <tr>
+      <td>116391</td>
+      <td>제814조 1항</td>
+      <td>①운송인의 송하인 또는 수하인에 대한…</td>
+      <td>근거와 계층·전체 본문 일치</td>
+    </tr>
+    <tr>
+      <td>116392</td>
+      <td>제814조 2항</td>
+      <td>②운송인이 인수한 운송을 다시 제3자에게…</td>
+      <td>다른 항</td>
+    </tr>
+    <tr>
+      <td>116393</td>
+      <td>제814조 3항</td>
+      <td>③제2항의 경우에 있어서 재판상 청구를…</td>
+      <td>다른 항</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><code class="language-plaintext highlighter-rouge">index</code>만 보면 네 행이 모두 후보지만, 계층과 본문을 검증하면 1항으로 연결된다. 다음 도식의 <code class="language-plaintext highlighter-rouge">E1</code>과 <code class="language-plaintext highlighter-rouge">U1</code>은 실제 해시 ID를 줄여 쓴 별칭이다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/koblex-legal-evaluation-dataset/mapping.png" alt="실제 질문의 근거를 상법 제814조 1항에 연결하고 정답표를 만드는 과정" /></p>
+
+<p><em>그림 1. 같은 조문의 후보 네 개 중 계층과 전체 본문이 일치하는 1항을 선택한다. E1·U1은 실제 ID의 별칭이고 본문은 그림에서만 생략했다.</em></p>
+
+<p>이 과정을 거치면 <strong>질문 → 근거 → 코퍼스의 법령 항목</strong> 관계를 ID로 조회할 수 있다. 이 사례에서는 해당 질문의 정답 근거가 법령 항목 U1에 연결된다.</p>
+
+<h2 id="4-정답표의-구조">4. 정답표의 구조</h2>
+
+<p>앞의 실제 사례는 근거 하나가 법령 한 항목에 연결된다. 검색 평가용 정답표인 qrels에는 여러 항목을 합쳐야 하는 관계도 저장한다. 다음은 별도의 가상 질문 Q2를 사용한 구조 예시다. 실제 사례의 별칭과 구분하기 위해 근거는 E2·E3, 법령은 U2·U3·U4로 표시했다.</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"Q2"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"E2"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"U2"</span><span class="p">,</span><span class="w"> </span><span class="s2">"U3"</span><span class="p">],</span><span class="w">
+    </span><span class="nl">"E3"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"U4"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>이 가상 질문 Q2에는 근거 E2와 E3가 필요하다. E2는 U2·U3의 전체 본문으로 구성되고 E3는 U4로 구성된다. 따라서 항목 ID뿐 아니라 해당 근거에 필요한 본문까지 정답 기준에 포함된다.</p>
+
+<p>생성한 파일의 필드와 연결 관계는 다음과 같다. JSON·JSONL 데이터를 테이블 형태로 표현했으며, 화살표의 숫자는 연결 개수를 뜻한다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/koblex-legal-evaluation-dataset/data-relationship.png" alt="질문·근거·법령·분할 데이터의 필드와 연결 키를 나타낸 테이블 형태의 관계도" /></p>
+
+<p><em>그림 2. 질문 하나에 여러 근거가 연결되고, 근거 하나는 여러 법령 항목으로 구성될 수 있다. ‘근거와 법령 연결’은 <code class="language-plaintext highlighter-rouge">evidence.unit_ids</code> 배열을 펼친 표현이며 별도 저장 파일은 아니다.</em></p>
+
+<p>각 파일의 저장 내용과 조회 키를 요약하면 다음과 같다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>파일</th>
+      <th>저장 내용</th>
+      <th>연결 키</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">queries.jsonl</code></td>
+      <td>질문과 검색 입력, 참고 답변, 평가 가능 상태</td>
+      <td><code class="language-plaintext highlighter-rouge">query_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">units.jsonl</code></td>
+      <td>법령 항목의 본문과 원본 위치</td>
+      <td><code class="language-plaintext highlighter-rouge">unit_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">evidence.jsonl</code></td>
+      <td>원본 근거와 매핑 결과·이유</td>
+      <td><code class="language-plaintext highlighter-rouge">query_id</code>, <code class="language-plaintext highlighter-rouge">evidence_id</code>, <code class="language-plaintext highlighter-rouge">unit_ids</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">qrels.json</code></td>
+      <td>평가 가능한 질문의 정답 연결</td>
+      <td>질문 → 근거 → 법령 ID 목록</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">splits.jsonl</code></td>
+      <td>개발·최종 평가·보류 구분</td>
+      <td><code class="language-plaintext highlighter-rouge">query_id</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>매핑 장부에는 연결 결과와 판정 이유를 남겨 추적할 수 있게 했다.</p>
+
+<h2 id="5-테스트셋-생성-결과와-보류-기준">5. 테스트셋 생성 결과와 보류 기준</h2>
+
+<p>근거가 하나라도 미해결이면 질문 전체를 보류했다. 일부 근거만 정답으로 남기면 질문이 원래보다 쉬워질 수 있기 때문이다. 마침표 차이나 같은 조문에서 재구성할 수 없는 본문도 임의로 수정하지 않고 실패 이유를 기록했다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>생성 결과</th>
+      <th style="text-align: right">수치</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>원본 질문 / 근거 주석</td>
+      <td style="text-align: right">226 / 443</td>
+    </tr>
+    <tr>
+      <td>단일 법령 항목과 일치</td>
+      <td style="text-align: right">410</td>
+    </tr>
+    <tr>
+      <td>여러 항목을 원본 순서로 결합해 일치</td>
+      <td style="text-align: right">24</td>
+    </tr>
+    <tr>
+      <td>QA 근거의 등장 순서로 결합해 일치</td>
+      <td style="text-align: right">5</td>
+    </tr>
+    <tr>
+      <td>미해결 근거</td>
+      <td style="text-align: right">4</td>
+    </tr>
+    <tr>
+      <td>평가 가능 / 보류 질문</td>
+      <td style="text-align: right">222 / 4</td>
+    </tr>
+    <tr>
+      <td>qrels에 포함된 근거 연결</td>
+      <td style="text-align: right">434</td>
+    </tr>
+    <tr>
+      <td>dev / test / holdout 질문</td>
+      <td style="text-align: right">44 / 178 / 4</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>qrels의 434건은 전체 근거 443건에서 미해결 4건과 보류 질문에 속한 나머지 근거 5건을 제외한 결과다. 통계와 검증 결과는 <a href="https://github.com/kdm-korea/llm-benchmark/blob/cbc43bbf59d3e96eca425a5d5330de8e5f28afc2/docs/benchmarks/koblex/audit-summary.json">audit summary</a>에 기록했다.</p>
+
+<p>개발·설정 조정용 dev, 최종 평가용 test, 미해결 질문 보관용 holdout으로 분할했다. 같은 질문 ID 계열이나 유사한 배경·질문을 가진 항목을 그룹으로 묶어 dev와 test에 걸치지 않게 했다. 다만 두 분할은 같은 법령 코퍼스를 사용하며, 공유하는 정답 근거가 10개 있다. 처음 보는 법령에 대한 일반화 성능을 측정하는 구성은 아니다.</p>
+
+<h2 id="6-생성-범위와-한계">6. 생성 범위와 한계</h2>
+
+<p>생성한 결과는 질문, 검색 대상 법령, 정답 근거의 연결, 개발·최종 평가용 분할이다. 검증 대상은 이 데이터의 매핑과 분할이며, 실제 검색이나 답변 생성의 성능은 측정하지 않았다.</p>
+
+<p>이 매핑은 원본에 주석된 근거와 코퍼스 본문이 일치하는지 검증한 결과다. 법령의 적용 시점이나 법률적 정답성을 독립적인 전문가가 검수한 것은 아니다. 원본의 구조화된 시점 정보도 충분하지 않아 추가 검토가 필요하다.</p>
+
+<p>자세한 필드와 연결 구조는 <a href="https://github.com/kdm-korea/llm-benchmark/blob/ce6a6f4a5cf84d1baadc3ad77b0a2ea7523c6fe2/docs/benchmarks/koblex/data-flow.md">데이터 흐름 문서</a>에 정리했다.</p>]]></content><author><name>Sino</name></author><category term="RAG" /><category term="Benchmark" /><category term="RAG" /><category term="KoBLEX" /><category term="법률검색" /><category term="테스트셋" /><category term="데이터매핑" /><summary type="html"><![CDATA[법률 RAG(Retrieval-Augmented Generation, 검색 증강 생성)의 검색 성능을 테스트하려면 질문마다 어떤 법령을 찾아야 하는지 정해져 있어야 한다. 이번에는 공개 벤치마크인 KoBLEX의 질문별 근거를 법령 코퍼스에 매핑하고, 정답표가 연결된 테스트셋을 생성했다.]]></summary></entry><entry><title type="html">법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html" rel="alternate" type="text/html" title="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획" /><published>2026-10-24T00:00:00+00:00</published><updated>2026-10-24T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html"><![CDATA[<h2 id="1-법률-rag를-만들기-위해-무엇을-검증할-것인가">1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가</h2>
+
+<p>법률 문서에서 필요한 근거를 찾고, 그 근거를 바탕으로 답변하는 RAG(Retrieval-Augmented Generation, 검색 증강 생성)를 개발하려 한다. 이를 위해 문서 처리부터 검색과 답변 생성까지 단계별로 테스트하고, 기술 선택의 근거를 연구 자료로 남긴다. 어떤 단계에서 정보가 손실되고 어떤 변경이 결과를 개선하는지 확인하는 것이 목적이다.</p>
+
+<p>연구는 임베딩 모델 선정에서 시작해, 문서를 나누는 방법과 PDF에서 정보를 추출하는 방법을 비교하고, 검색한 법률 근거로 답변하는 과정을 검증하는 방향으로 진행한다.</p>
+
+<p><strong>이 글은 시리즈의 첫 글로, 전체 연구 목적과 단계별 평가 계획을 안내한다.</strong> 연구 순서에 따라 실험을 진행하고, 이후 포스트에서 각 단계의 데이터, 실험 조건, 결과와 실패 사례를 구체적으로 다룬다.</p>
+
+<h2 id="2-연구-흐름-문서를-읽고-근거를-찾고-답변을-검증한다">2. 연구 흐름: 문서를 읽고, 근거를 찾고, 답변을 검증한다</h2>
+
+<p>임베딩 모델을 비교한 뒤, 청킹과 PDF 처리 실험에 필요한 평가 데이터와 정답 기준을 준비한다. 이후 문서 처리, 검색, 답변 생성으로 범위를 넓힌다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>단계</th>
+      <th>연구할 내용</th>
+      <th>판단할 질문</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1. 임베딩 모델 선정</td>
+      <td>같은 판례에 대한 모델별 검색 비교</td>
+      <td>관련 문서를 잘 찾는가?</td>
+    </tr>
+    <tr>
+      <td>2. 평가 데이터와 정답 기준</td>
+      <td>질문·정답 근거·기대 답변 매핑</td>
+      <td>무엇을 정답으로 인정할 것인가?</td>
+    </tr>
+    <tr>
+      <td>3. 법률 텍스트 청킹</td>
+      <td>조/항/호·문단·고정 길이 분할</td>
+      <td>필요한 맥락과 예외가 보존되는가?</td>
+    </tr>
+    <tr>
+      <td>4. PDF 파싱</td>
+      <td>문단·읽기 순서·표·이미지 추출</td>
+      <td>원문 정보가 정확히 추출되는가?</td>
+    </tr>
+    <tr>
+      <td>5. PDF 청킹·임베딩</td>
+      <td>페이지 경계와 문서 구조 처리</td>
+      <td>필요한 내용을 검색 가능한 단위로 표현하는가?</td>
+    </tr>
+    <tr>
+      <td>6. 검색·재정렬</td>
+      <td>벡터·키워드·하이브리드·reranker 비교</td>
+      <td>답변에 필요한 근거가 상위에 모이는가?</td>
+    </tr>
+    <tr>
+      <td>7. 근거 기반 답변</td>
+      <td>사실관계와 법령·판례를 결합</td>
+      <td>결론과 인용이 근거에 부합하는가?</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>첫 단계인 판례 문서 단위 임베딩 비교는 완료했다. 구체적인 모델 선택 근거는 해당 결과 글에서 설명한다. 법령·청크·PDF에 적용했을 때의 성능은 각 실험에서 별도로 확인한다.</p>
+
+<h2 id="3-실험-전에-정답의-단위를-정한다">3. 실험 전에 정답의 단위를 정한다</h2>
+
+<p>문서 검색에서는 관련 문서 ID가 정답이 될 수 있다. 하지만 청킹을 비교할 때는 관련 문서 안의 어느 부분이 필요한 근거인지도 알아야 한다. 정답 문서에서 가져온 청크라도 질문과 무관한 내용일 수 있기 때문이다.</p>
+
+<p>따라서 질문별로 정답 문서, 페이지, 가능한 경우 근거 구간과 기대 답변을 매핑한다. 여기서 매핑은 질문에 대응하는 정답 근거와 답변의 관계를 기록하는 작업이다. 법률 적용 질문에는 필요한 조문과 판단 기준 날짜도 기록한다. 기존 공개 평가 데이터를 우선 활용하고, 부족한 유형을 보완한다.</p>
+
+<p>검색 단위가 바뀌어도 정답의 의미는 유지해야 한다. 하나의 근거를 여러 청크가 반복해서 담고 있다면, 검색 결과 개수와 그 안에 포함된 서로 다른 정답 근거의 개수를 구분한다. 또 튜닝용 질문과 최종 평가용 질문을 나누어 같은 질문에만 설정을 맞추는 일을 줄인다.</p>
+
+<h2 id="4-법률-텍스트는-길이와-구조를-함께-비교한다">4. 법률 텍스트는 길이와 구조를 함께 비교한다</h2>
+
+<p>청킹은 긴 문서를 검색과 임베딩에 사용할 작은 단위로 나누는 작업이다. 일정한 길이로 나누는 방식을 기준선으로 두고, 문단 분할과 조/항/호 구조를 이용한 분할을 비교한다. 청크 크기와 중첩뿐 아니라 법령명·조 제목·상위 항목을 함께 넣는 효과도 확인한다.</p>
+
+<p>검색 성능과 함께 맥락이 유지되는지도 확인한다. 본문과 단서가 떨어지거나 정의 조항을 놓치면 해석에 필요한 조건이 누락될 수 있다. 관련 조문을 추가로 찾아야 하는 질문도 포함해 하나의 청크만으로 충분한 경우와 복수 근거가 필요한 경우를 구분한다.</p>
+
+<p>청킹 비교에서는 같은 검색 개수 K와 같은 입력 토큰 예산을 각각 적용한다. 큰 청크와 작은 청크를 같은 개수로 가져오면 전달하는 정보량이 달라지므로, 두 조건을 함께 봐야 한다.</p>
+
+<h2 id="5-pdf-파싱과-청킹을-나누어-평가한다">5. PDF 파싱과 청킹을 나누어 평가한다</h2>
+
+<p>PDF 파싱은 문서에서 텍스트와 구조를 추출하는 과정이다. 이 단계에서 정보가 누락되거나 잘못 읽혔다면 청킹 방식을 바꾸는 것만으로 해결하기 어렵다. 파싱 결과를 중간 산출물로 남기고, 추출 오류와 분할 오류를 따로 추적한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>PDF 요소</th>
+      <th>파싱에서 확인할 것</th>
+      <th>청킹에서 확인할 것</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>문단</td>
+      <td>누락·오인식·읽기 순서</td>
+      <td>문단과 제목의 연결</td>
+    </tr>
+    <tr>
+      <td>페이지</td>
+      <td>머리말·꼬리말·각주 구분</td>
+      <td>페이지를 넘는 문단의 연속성</td>
+    </tr>
+    <tr>
+      <td>표</td>
+      <td>행·열·단위·주석 보존</td>
+      <td>표와 설명문, 여러 페이지 표의 연결</td>
+    </tr>
+    <tr>
+      <td>이미지</td>
+      <td>OCR·설명문의 정보 정확성</td>
+      <td>주변 문맥과 출처 연결</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>텍스트형과 스캔형 PDF를 구분하고 다단 문서, 병합 셀, 각주 같은 사례도 확인한다. 이미지는 OCR(광학 문자 인식)로 추출한 텍스트나 설명문을 이용한 검색을 기준선으로 두고, 직접 이미지 임베딩이 추가로 필요한지 비교한다.</p>
+
+<p>모든 검색 결과는 원래 파일과 페이지를 추적할 수 있어야 한다. PDF 파일의 페이지 번호와 문서에 인쇄된 쪽수가 다를 수 있으므로 두 값을 구분한다.</p>
+
+<h2 id="6-검색-평가는-정답-근거-포함-여부와-순위-품질을-함께-본다">6. 검색 평가는 정답 근거 포함 여부와 순위 품질을 함께 본다</h2>
+
+<p>임베딩 모델을 선정한 뒤에도 검색 방식은 비교 대상이다. 키워드 검색, 벡터 검색, 두 방식을 결합한 하이브리드 검색을 같은 질문에서 평가한다. 검색 후보의 순서를 다시 매기는 reranker도 적용 전후를 비교한다.</p>
+
+<p>법령명이나 조문 번호를 직접 쓰는 질문과 일상어로 상황을 설명하는 질문을 함께 다룬다. 문구가 비슷한 다른 조문, 개정 전후 문서, 조건이 다른 판례가 섞였을 때 필요한 근거를 구별하는지도 확인한다.</p>
+
+<p>검색 결과에 정답 근거가 얼마나 포함됐는지 평가한다. 재현율(Recall)은 전체 정답 근거 중 검색 결과에 포함된 근거의 비율이다. 첫 정답의 순위, 관련 결과의 상위 배치, 필요한 정답 근거가 모두 포함된 질문 비율도 측정한다. 평균 점수와 함께 질문 유형별 실패 사례를 남겨 다음 실험에서 개선할 대상을 정한다.</p>
+
+<h2 id="7-pdf-내용-확인과-법률-적용을-구분한다">7. PDF 내용 확인과 법률 적용을 구분한다</h2>
+
+<p>PDF에 쓰인 내용을 답하는 작업과 PDF의 사실관계에 법률을 적용하는 작업은 평가 기준이 다르다. 계약서나 사건 자료를 다룬다면 사실을 정확히 읽었는지, 적절한 법령·판례를 찾았는지, 그 근거를 사실관계에 적용했는지를 각각 확인해야 한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>평가 대상</th>
+      <th>확인할 내용</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>사실 추출</td>
+      <td>PDF의 당사자·행위·날짜·금액·조건을 정확히 읽었는가?</td>
+    </tr>
+    <tr>
+      <td>법률 근거</td>
+      <td>관련 조문·판례와 적용 시점을 적절히 선택했는가?</td>
+    </tr>
+    <tr>
+      <td>결론</td>
+      <td>요건·예외·단서를 반영해 답했는가?</td>
+    </tr>
+    <tr>
+      <td>인용</td>
+      <td>실제 존재하는 위치를 가리키며 주장을 뒷받침하는가?</td>
+    </tr>
+    <tr>
+      <td>정보 부족</td>
+      <td>근거가 없거나 사실이 부족할 때 유보하거나 추가 질문을 하는가?</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>PDF와 법령을 결합하는 효과는 같은 질문에 PDF만 제공한 경우, 법령만 제공한 경우, 둘 다 제공한 경우를 비교해 확인한다. 이때 결합 평가용 질문에는 적용 근거와 기대 결론을 별도로 준비한다.</p>
+
+<p>생성 오류를 분석할 때는 정답 근거를 제공한 조건과 실제 검색 근거를 제공한 조건도 비교한다. 답변의 정확성, 근거 충실성, 인용 정확성을 나누어 기록하고 자동 평가와 사람의 검토를 함께 사용한다.</p>
+
+<h2 id="8-결과는-재현-조건과-한계를-함께-남긴다">8. 결과는 재현 조건과 한계를 함께 남긴다</h2>
+
+<p>각 실험에서는 데이터·모델·파서·프롬프트의 버전과 설정을 고정한다. 한 번에 한 요소씩 바꾸고 질의별 검색 결과와 답변을 저장한다. 개선 수치와 함께 어떤 유형의 질문에서 나아졌는지 확인한다.</p>
+
+<p>운영에 가까워지면 지연시간·메모리·비용과 문서 갱신도 평가한다. 개정 법령을 추가하거나 기존 문서를 삭제했을 때 구버전과 중복 근거가 어떻게 처리되는지 살펴본다. 문서에 섞인 명령문을 지시로 따르는지 같은 실패 상황도 포함한다.</p>
+
+<h2 id="9-이후-포스트에서-다룰-내용">9. 이후 포스트에서 다룰 내용</h2>
+
+<p>각 결과 글은 앞서 제시한 연구 순서에 맞춰 정리한다. 해당 실험의 질문, 비교 조건, 변경한 요소, 결과와 실패 사례를 중심으로 설명한다.</p>
+
+<p>첫 실험의 결과는 <a href="https://kdm-korea.github.io/rag/embedding/2026/10/23/legal-embedding-recall-benchmark.html">한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교</a>에서 확인할 수 있다. 이후 실험도 결과가 정리되는 대로 이 글에 연결할 예정이다.</p>]]></content><author><name>Sino</name></author><category term="RAG" /><category term="Research" /><category term="RAG" /><category term="Embedding" /><category term="Chunking" /><category term="PDF" /><category term="Retrieval" /><category term="Evaluation" /><category term="법률검색" /><summary type="html"><![CDATA[1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가]]></summary></entry><entry><title type="html">한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/rag/embedding/2026/10/23/legal-embedding-recall-benchmark.html" rel="alternate" type="text/html" title="한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교" /><published>2026-10-23T00:00:00+00:00</published><updated>2026-10-23T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/rag/embedding/2026/10/23/legal-embedding-recall-benchmark</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/rag/embedding/2026/10/23/legal-embedding-recall-benchmark.html"><![CDATA[<h2 id="초록">초록</h2>
+
+<p>법률 RAG의 검색 모델을 선택하기 위해 한국어 판례 데이터에서 세 임베딩 모델의 관련 문서 회수 성능과 순위 품질을 비교하였다. EVE-Bench-Legal-2.0의 판례 59,786개와 고유 질의 5,998개를 사용하고, BGE-M3, KURE-v1, Multilingual E5 Large로 각 판례를 하나의 벡터로 표현하였다. 모든 질의에 대해 전체 문서와 코사인 유사도를 계산한 뒤, 동일한 검색 결과에서 Recall@K와 이진 nDCG@K를 질의별로 구하여 평균하였다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/legal-embedding-recall/metrics-overview.png" alt="모델별 Recall@20과 이진 nDCG@10 비교" /></p>
+
+<p><em>그림 1. 모델별 평균 Recall@20(왼쪽, %)과 이진 nDCG@10(오른쪽, 0~1)</em></p>
+
+<p>KURE-v1은 평가한 모든 K에서 Recall과 이진 nDCG가 가장 높았다. 그림 1은 관련 문서 회수와 상위 순위 품질을 각각 비교한 결과다. 이에 따라 <strong>이번 문서 단위 판례 검색의 기본 임베딩 모델로 KURE-v1을 선택하였다.</strong> 다만 모델별 입력 길이가 다르고 단일 데이터셋에서 평가하였으므로, 결과의 적용 범위는 본 실험 조건으로 한정한다.</p>
+
+<p><strong>주제어:</strong> 법률 RAG, 한국어 판례 검색, 임베딩 모델, Recall@K, 이진 nDCG@K</p>
+
+<h2 id="1-서론">1. 서론</h2>
+
+<p>법률 RAG는 검색한 판례를 근거로 답변을 생성한다. 따라서 생성 모델을 비교하기에 앞서, 검색 단계에서 관련 판례를 어느 정도 확보할 수 있는지 확인할 필요가 있다. 모델의 공개 성능이나 한국어 지원 여부만으로는 실제 법률 데이터에서의 선택 근거를 충분히 마련하기 어렵다.</p>
+
+<p>본 실험의 목적은 한국어 판례 검색에 사용할 임베딩 모델의 기준선을 확보하는 데 있다. 로컬 Mac mini M2·16GB 메모리 환경의 자원 제약을 고려하여, 약 5.6억 파라미터 규모로 로컬에서 실행 가능한 BGE-M3, KURE-v1, Multilingual E5 Large를 비교 대상으로 선정하였다. 최신 한국어 검색 상위 세 모델을 포괄하는 비교는 아니며, 해당 환경에서 실행 가능한 후보 간 성능을 평가하였다. 검색엔진의 근사 탐색 설정이 결과에 개입하지 않도록 전체 문서에 대한 정확 검색을 수행하고, 관련 판례의 회수율은 Recall@K로, 순위 품질은 이진 nDCG@K로 비교하였다.</p>
+
+<p>연구 질문은 두 가지다. 첫째, 동일한 판례 집합에서 어느 모델이 더 많은 관련 문서를 회수하는가. 둘째, 관련 판례를 상위에 배치하는 순위 품질은 어떠한가. 검색 결과 수 K에 따른 두 지표의 변화도 함께 살펴본다. 이 결과를 바탕으로 기본 모델을 선택하되, 생성 답변의 정확도나 서비스 응답 속도까지 검증한 것으로 해석하지 않는다.</p>
+
+<h2 id="2-실험-방법">2. 실험 방법</h2>
+
+<h3 id="21-데이터와-정답-구성">2.1. 데이터와 정답 구성</h3>
+
+<p>평가에는 <a href="https://huggingface.co/datasets/ysmeta/EVE-Bench-Legal-2.0">EVE-Bench-Legal-2.0</a>의 문서 집합과 관련성 판정인 Qrels를 사용하였다. 검색 대상은 판례 59,786개 전체이며, 관련성 등급이 0보다 큰 문서를 해당 질의의 관련 문서로 정의하였다. 질의당 관련 문서 수는 평균 약 7.20개였다.</p>
+
+<p>원본 Qrels 5,999행 중 동일한 질의가 두 번 등장하는 사례가 있었다. 해당 질의의 관련 문서 집합을 합치고, 같은 문서에 대한 등급은 최댓값을 유지하였다. 이 병합 정책을 적용한 고유 질의는 5,998개였으며, 평가에서 제외한 질의는 없었다. 중복 질의를 마지막 행으로 덮어쓰는 처리와는 정답 집합이 달라질 수 있으므로 결과를 재현할 때 같은 정책을 적용해야 한다.</p>
+
+<h3 id="22-문서-표현과-모델-설정">2.2. 문서 표현과 모델 설정</h3>
+
+<p>각 판례의 제목과 본문을 줄바꿈으로 연결하여 입력하였다. 문서를 청크로 나누지 않고, <strong>판례 하나를 벡터 하나로 표현하는 조건</strong>을 유지하였다. 모델에 전달하는 원문은 동일하게 구성하되, 접두어와 최대 입력 길이는 각 모델의 입력 규칙을 적용하였다.</p>
+
+<p><em>표 1. 비교 모델과 입력 설정</em></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>모델</th>
+      <th>모델 ID</th>
+      <th style="text-align: right">최대 입력 길이</th>
+      <th>질의 / 문서 접두어</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BGE-M3</td>
+      <td><code class="language-plaintext highlighter-rouge">BAAI/bge-m3</code></td>
+      <td style="text-align: right">8,192토큰</td>
+      <td>없음 / 없음</td>
+    </tr>
+    <tr>
+      <td>KURE-v1</td>
+      <td><code class="language-plaintext highlighter-rouge">nlpai-lab/KURE-v1</code></td>
+      <td style="text-align: right">8,192토큰</td>
+      <td>없음 / 없음</td>
+    </tr>
+    <tr>
+      <td>Multilingual E5 Large</td>
+      <td><code class="language-plaintext highlighter-rouge">intfloat/multilingual-e5-large</code></td>
+      <td style="text-align: right">512토큰</td>
+      <td><code class="language-plaintext highlighter-rouge">query: </code> / <code class="language-plaintext highlighter-rouge">passage: </code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>모든 출력 벡터의 차원은 1,024이며, L2 정규화 후 코사인 유사도로 검색하였다. 따라서 이 실험은 각 모델의 입력 제약을 포함한 문서 단위 적용 성능을 비교한다. 입력 길이를 동일하게 통제하여 모델 구조 자체의 차이만 분리한 실험은 아니다.</p>
+
+<h3 id="23-검색과-평가-지표">2.3. 검색과 평가 지표</h3>
+
+<p>각 질의를 59,786개 전체 문서와 비교하여 유사도가 높은 순서로 100개를 추출하였다. 정답으로 판정된 후보만 검색하는 제한은 두지 않았다. 근사 최근접 이웃 검색, 키워드 검색, 재순위화는 적용하지 않았다.</p>
+
+<p>질의 q의 관련 문서 집합을 G(q), 상위 K개 검색 결과를 Sₖ(q)라고 하면 Recall@K는 다음과 같다.</p>
+
+<blockquote>
+  <table>
+    <tbody>
+      <tr>
+        <td>**Recall@K(q) =</td>
+        <td>Sₖ(q) ∩ G(q)</td>
+        <td>/</td>
+        <td>G(q)</td>
+        <td>**</td>
+      </tr>
+    </tbody>
+  </table>
+</blockquote>
+
+<p>최종 점수는 전체 5,998개 질의의 Recall@K를 산술평균한 값이다. 예를 들어 관련 판례가 5개인 질의에서 상위 10개 결과에 관련 판례 3개가 포함되면 Recall@10은 60%이다. 이처럼 질의별 점수를 먼저 구한 뒤 평균하여 각 질의에 같은 가중치를 부여하였다.</p>
+
+<p>Recall은 관련 판례를 얼마나 회수했는지, nDCG는 관련 판례가 얼마나 앞에 배치되었는지를 평가한다. 두 지표는 동일한 검색 결과로 계산하며 별도의 모델 추론을 요구하지 않는다.</p>
+
+<p>이번 nDCG는 Qrels의 양수 등급을 모두 1로 변환한 <strong>이진 nDCG</strong>다. 관련성 등급 1과 2의 차이는 반영하지 않으며, 관련 문서와 비관련 문서의 순서만 평가한다. 따라서 ‘더 중요한 판례를 앞에 놓는 능력’을 직접 검증했다고 해석하지 않는다.</p>
+
+<p>질의별 이진 nDCG는 상위 K개에서 관련 문서가 등장한 순위 i에 <code class="language-plaintext highlighter-rouge">1 / log₂(i + 1)</code>의 가중치를 더한 DCG를, 관련 문서를 모두 앞에 배치한 이상적 순서의 DCG인 IDCG로 나눈 값이다. 최종 점수는 질의별 <code class="language-plaintext highlighter-rouge">DCG@K / IDCG@K</code>의 산술평균이다. 값의 범위는 0~1이며, 백분율이나 답변 정확도가 아니다.</p>
+
+<p>평가한 K는 1, 5, 10, 20, 50, 100이다. Recall은 실행 시 MTEB 2.26.11과 교차 검증하였다. nDCG도 같은 실행의 MTEB 원본에 저장되어 있었으며, 이번 문서 개정에서 질의별 평균과 검색 순위 기반 독립 재계산으로 검증하였다. 모델 추론과 검색은 다시 실행하지 않았다.</p>
+
+<h3 id="24-실행-환경과-재현-조건">2.4. 실행 환경과 재현 조건</h3>
+
+<p>전체 평가는 2026년 10월 20일 로컬 macOS 15.5의 Apple MPS 장치에서 수행하였다. 추론 자료형은 <code class="language-plaintext highlighter-rouge">torch.float32</code>, 배치 크기는 4였으며, Python 3.12.10, PyTorch 2.14.1, SentenceTransformers 5.7.0을 사용하였다. 모델 파일을 내려받은 뒤 임베딩 연산은 로컬에서 실행하였다.</p>
+
+<p>데이터와 모델의 리비전을 고정하고, 입력 설정과 실행 환경을 결과 메타데이터에 저장하였다. 데이터셋 리비전은 <code class="language-plaintext highlighter-rouge">1580448204d13ec8af13745086ffa91cfda407c3</code>이다. 모델 리비전과 실행 절차는 <a href="https://github.com/kdm-korea/llm-benchmark/tree/2bc01e7fbb2c53619b5b0535ed21bfc497178128">벤치마크 구현 및 설정</a>에서 확인할 수 있다.</p>
+
+<h2 id="3-실험-결과">3. 실험 결과</h2>
+
+<h3 id="31-recallk-비교">3.1. Recall@K 비교</h3>
+
+<p>그림 2는 검색 결과 수에 따른 회수율 변화를 보여준다. K는 로그 간격으로 표시하였으며, 각 점은 실제 평가한 조건이다. 점을 연결한 선은 관측값 사이의 흐름을 보여주기 위한 것으로, 중간 K의 측정 결과를 의미하지 않는다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/legal-embedding-recall/recall-curve.png" alt="검색 결과 수 K에 따른 세 임베딩 모델의 평균 Recall 변화" /></p>
+
+<p><em>그림 2. 모델별 Recall@K 곡선 (오른쪽 라벨: Recall@100, 상세 수치: 표 2)</em></p>
+
+<details>
+<summary>표 2. 전체 Recall 측정값 보기</summary>
+<div>
+
+    <p>값은 백분율이며, 굵은 글씨는 해당 K에서 가장 높은 점수다.</p>
+
+    <p><em>표 2. 전체 문서 검색에 대한 모델별 Recall@K</em></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>모델</th>
+          <th style="text-align: right">R@1</th>
+          <th style="text-align: right">R@5</th>
+          <th style="text-align: right">R@10</th>
+          <th style="text-align: right">R@20</th>
+          <th style="text-align: right">R@50</th>
+          <th style="text-align: right">R@100</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>**KURE-v1**</td>
+          <td style="text-align: right">**18.36%**</td>
+          <td style="text-align: right">**41.35%**</td>
+          <td style="text-align: right">**55.51%**</td>
+          <td style="text-align: right">**72.00%**</td>
+          <td style="text-align: right">**85.82%**</td>
+          <td style="text-align: right">**92.17%**</td>
+        </tr>
+        <tr>
+          <td>BGE-M3</td>
+          <td style="text-align: right">17.50%</td>
+          <td style="text-align: right">39.32%</td>
+          <td style="text-align: right">52.38%</td>
+          <td style="text-align: right">66.04%</td>
+          <td style="text-align: right">80.95%</td>
+          <td style="text-align: right">88.70%</td>
+        </tr>
+        <tr>
+          <td>Multilingual E5 Large</td>
+          <td style="text-align: right">16.82%</td>
+          <td style="text-align: right">37.13%</td>
+          <td style="text-align: right">48.53%</td>
+          <td style="text-align: right">60.49%</td>
+          <td style="text-align: right">74.41%</td>
+          <td style="text-align: right">82.83%</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+</details>
+
+<p>KURE-v1은 모든 K에서 가장 높은 점수를 보였고, BGE-M3와 Multilingual E5 Large가 뒤를 이었다. 두 그림에서 같은 순위가 유지되어, 특정 후보 수에서만 앞선 결과가 아님을 확인할 수 있다.</p>
+
+<p>K를 늘리면 세 모델 모두 회수율이 높아졌다. 이는 기본 모델 선택과 별개로 후보 문서 수가 관련 판례 확보에 큰 영향을 준다는 것을 보여준다. 다만 상위 100개 검색 결과를 모두 생성 모델에 전달하는 구성이 적절한지는 본 실험에서 평가하지 않았다.</p>
+
+<h3 id="32-이진-ndcgk-비교">3.2. 이진 nDCG@K 비교</h3>
+
+<p>그림 3은 같은 검색 순위에 대해 계산한 이진 nDCG를 보여준다. Recall이 놓친 관련 문서의 양을 설명한다면, 이 지표는 관련 문서의 상위 배치를 평가한다.</p>
+
+<p><img src="/jekyll-theme-yat/assets/images/legal-embedding-recall/ndcg-curve.png" alt="모델별 이진 nDCG@K 비교" /></p>
+
+<p><em>그림 3. 모델별 이진 nDCG@K 곡선 (오른쪽 라벨: nDCG@100)</em></p>
+
+<details>
+<summary>표 3. 전체 이진 nDCG 측정값 보기</summary>
+<div>
+
+    <p>소수점 다섯 자리로 표시한 0~1 점수다.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>모델</th>
+          <th style="text-align: right">nDCG@1</th>
+          <th style="text-align: right">nDCG@5</th>
+          <th style="text-align: right">nDCG@10</th>
+          <th style="text-align: right">nDCG@20</th>
+          <th style="text-align: right">nDCG@50</th>
+          <th style="text-align: right">nDCG@100</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>KURE-v1</td>
+          <td style="text-align: right">**0.81594**</td>
+          <td style="text-align: right">**0.61369**</td>
+          <td style="text-align: right">**0.61221**</td>
+          <td style="text-align: right">**0.67081**</td>
+          <td style="text-align: right">**0.72516**</td>
+          <td style="text-align: right">**0.74510**</td>
+        </tr>
+        <tr>
+          <td>BGE-M3</td>
+          <td style="text-align: right">0.77859</td>
+          <td style="text-align: right">0.58248</td>
+          <td style="text-align: right">0.57940</td>
+          <td style="text-align: right">0.62496</td>
+          <td style="text-align: right">0.68324</td>
+          <td style="text-align: right">0.70776</td>
+        </tr>
+        <tr>
+          <td>Multilingual E5 Large</td>
+          <td style="text-align: right">0.74175</td>
+          <td style="text-align: right">0.54993</td>
+          <td style="text-align: right">0.54037</td>
+          <td style="text-align: right">0.57941</td>
+          <td style="text-align: right">0.63369</td>
+          <td style="text-align: right">0.66070</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+</details>
+
+<p>같은 K에서 KURE-v1, BGE-M3, Multilingual E5 Large 순으로 점수가 높았다. 따라서 KURE-v1 선택은 관련 문서 회수율뿐 아니라 관련 문서의 상위 배치 측면에서도 뒷받침된다. 두 지표의 점수를 서로 더하거나 직접 비교한 것은 아니다.</p>
+
+<p>nDCG는 K에 따라 평가 구간과 이상적인 순서의 분모가 함께 달라진다. 따라서 Recall처럼 K가 커질수록 반드시 증가하지 않는다. 특히 K=1의 높은 점수와 K=10의 낮은 점수만으로 검색 품질이 악화되었다고 해석할 수 없으며, 모델 비교는 동일한 K에서 수행한다.</p>
+
+<h3 id="33-첫-번째-검색-결과와-전체-정답-회수">3.3. 첫 번째 검색 결과와 전체 정답 회수</h3>
+
+<p>Recall@1은 첫 결과가 관련 문서인 질의의 비율과 구분해야 한다. 관련 판례가 10개인 질의에서는 첫 결과가 관련 판례여도 Recall@1이 10%에 그친다. 따라서 KURE-v1의 Recall@1 18.36%를 첫 검색 결과의 적중률로 해석할 수 없다.</p>
+
+<p>저장된 순위에서 첫 결과의 적중 여부를 별도로 계산하였다. 표 4는 첫 결과가 관련 판례인 비율과, 상위 후보 전체에서 관련 판례를 놓친 질의 수를 비교한다.</p>
+
+<p><em>표 4. 검색 결과의 적중 여부에 대한 보조 통계</em></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>모델</th>
+      <th style="text-align: right">첫 결과 적중률 (Hit@1)</th>
+      <th style="text-align: right">Top 100에 관련 판례가 없는 질의 수</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>KURE-v1</td>
+      <td style="text-align: right">81.59%</td>
+      <td style="text-align: right">8개</td>
+    </tr>
+    <tr>
+      <td>BGE-M3</td>
+      <td style="text-align: right">77.86%</td>
+      <td style="text-align: right">14개</td>
+    </tr>
+    <tr>
+      <td>Multilingual E5 Large</td>
+      <td style="text-align: right">74.17%</td>
+      <td style="text-align: right">32개</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>같은 이유로 Recall@100은 모든 관련 판례를 찾은 질의의 비율을 뜻하지 않는다. KURE-v1에서 모든 관련 판례를 회수한 질의의 비율은 아래와 같이 구분된다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>지표</th>
+      <th style="text-align: right">KURE-v1</th>
+      <th>해석</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>평균 Recall@100</td>
+      <td style="text-align: right">92.17%</td>
+      <td>질의별 관련 문서 회수율의 평균</td>
+    </tr>
+    <tr>
+      <td>관련 판례 전체 회수 질의 비율</td>
+      <td style="text-align: right">68.16%</td>
+      <td>모든 관련 문서를 Top 100에서 찾은 질의의 비율</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>이 보조 통계는 Recall의 의미를 구체적으로 해석하기 위해 제시하였다.</p>
+
+<h3 id="34-입력-길이와-실행-시간">3.4. 입력 길이와 실행 시간</h3>
+
+<p>문서 단위 입력에서는 모델의 최대 입력 길이가 실제 검색 조건에 영향을 줄 수 있다. 표 5는 입력 제한으로 잘린 문서 수와 실행 기록을 함께 제시한다.</p>
+
+<p><em>표 5. 문서 잘림 현황과 모델별 기록 시간</em></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>모델</th>
+      <th style="text-align: right">잘린 문서 수</th>
+      <th style="text-align: right">전체 문서 대비 비율</th>
+      <th style="text-align: right">기록된 실행 시간</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BGE-M3</td>
+      <td style="text-align: right">0개</td>
+      <td style="text-align: right">0.00%</td>
+      <td style="text-align: right">93.52분</td>
+    </tr>
+    <tr>
+      <td>KURE-v1</td>
+      <td style="text-align: right">0개</td>
+      <td style="text-align: right">0.00%</td>
+      <td style="text-align: right">94.43분</td>
+    </tr>
+    <tr>
+      <td>Multilingual E5 Large</td>
+      <td style="text-align: right">8,170개</td>
+      <td style="text-align: right">13.67%</td>
+      <td style="text-align: right">74.52분</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>BGE-M3와 KURE-v1은 모든 문서를 입력 한도 내에서 처리하였으나, Multilingual E5 Large에서는 일부 문서가 잘렸다. 질의 입력은 세 모델 모두 잘리지 않았다.</p>
+
+<p>기록 시간에는 모델 확인과 로딩, 문서·질의 임베딩, 검색, 평가, 결과 저장이 포함된다. 세 모델 모두 기존 임베딩 캐시를 사용하지 않았다. 다만 전체 실행의 시작과 종료 시각 차이는 약 13시간 13분인 반면, 모델별 기록 시간의 합은 약 4시간 22분이었다. 이 차이의 원인은 저장된 산출물만으로 확인하지 못했으므로, 시간은 실행 참고값으로만 제시한다. 이를 근거로 모델의 처리량이나 온라인 검색 지연시간의 우열을 판단하지 않았다.</p>
+
+<h2 id="4-고찰">4. 고찰</h2>
+
+<h3 id="41-모델-선택에-대한-시사점">4.1. 모델 선택에 대한 시사점</h3>
+
+<p>이번 조건에서는 KURE-v1을 기본 모델로 채택할 근거가 가장 명확하였다. 모든 K에서 가장 높은 Recall과 이진 nDCG를 보였고, 문서 입력도 잘리지 않았다. 그림 1의 요약 비교와 두 지표의 전체 곡선은 이 선택을 일관되게 뒷받침한다. 다만 이 차이에 대한 통계적 유의성 검정은 수행하지 않았다.</p>
+
+<p>BGE-M3는 후속 검색 실험의 비교 기준으로 유지할 수 있다. Multilingual E5 Large는 이번 문서 단위 평가에서 상대적으로 낮은 Recall과 이진 nDCG를 보였으나, 이 결과만으로 청크 단위 검색에서도 같은 순위가 유지된다고 볼 수는 없다. 문서 잘림이 점수에 영향을 주었을 가능성은 있으나, 길이를 통제한 별도 실험이 없으므로 성능 차이의 원인을 잘림으로 단정하지 않는다.</p>
+
+<h3 id="42-평가의-한계">4.2. 평가의 한계</h3>
+
+<p>본 평가는 단일 판례 데이터셋과 한 번의 전체 실행에 근거한다. 다른 법률 문서 유형이나 실제 서비스 질의로 결과를 일반화하려면 추가 검증이 필요하다. 또한 후보 풀에 기반한 Qrels는 전체 문서의 관련성을 완전하게 판정한 정답 집합으로 볼 수 없으므로, 결과는 제공된 관련성 판정에 대한 회수율과 순위 품질로 해석해야 한다.</p>
+
+<p>검색 정확도와 최종 답변 품질도 구분해야 한다. 본 실험은 생성 답변의 정확성, 인용의 적절성, 재순위화 효과를 측정하지 않았다. 따라서 높은 Recall이 곧바로 더 정확한 법률 답변을 보장하지는 않는다. 후속 실험에서는 동일한 평가 기준을 유지하면서 청킹, Hybrid Search, Reranker가 후보 회수율과 최종 답변에 미치는 영향을 각각 확인할 수 있다.</p>
+
+<h2 id="5-결론">5. 결론</h2>
+
+<p>판례 59,786개와 질의 5,998개를 대상으로 세 임베딩 모델을 비교한 결과, KURE-v1이 모든 K에서 Recall과 이진 nDCG 모두 가장 높은 점수를 기록하였다. 후보 수가 달라져도 모델 간 성능 순위가 유지되었으며, 입력 길이 제한으로 잘린 문서는 없었다. 이에 따라 한국어 판례를 문서 단위로 검색하는 본 프로젝트의 기본 모델로 KURE-v1을 선택하였다.</p>
+
+<p>이 선택의 근거는 본 데이터와 검색 조건에서 관측한 회수율과 이진 관련성 기준의 순위 품질이다. 청킹 방식이나 검색 구조가 바뀌면 동일한 평가를 다시 수행해야 하며, 이번 결과는 그 변화량을 비교하기 위한 기준선으로 사용한다.</p>
+
+<h2 id="참고문헌-및-구현-자료">참고문헌 및 구현 자료</h2>
+
+<ol>
+  <li><a href="https://huggingface.co/datasets/ysmeta/EVE-Bench-Legal-2.0">EVE-Bench-Legal-2.0 데이터셋</a></li>
+  <li><a href="https://huggingface.co/BAAI/bge-m3">BGE-M3 모델 카드</a></li>
+  <li><a href="https://huggingface.co/nlpai-lab/KURE-v1">KURE-v1 모델 카드</a></li>
+  <li><a href="https://huggingface.co/intfloat/multilingual-e5-large">Multilingual E5 Large 모델 카드</a></li>
+  <li><a href="https://github.com/embeddings-benchmark/mteb">MTEB 평가 프레임워크</a></li>
+  <li><a href="https://github.com/kdm-korea/llm-benchmark/tree/2bc01e7fbb2c53619b5b0535ed21bfc497178128">본 실험의 구현 및 설정</a></li>
+</ol>]]></content><author><name>Sino</name></author><category term="RAG" /><category term="Embedding" /><category term="RAG" /><category term="Embedding" /><category term="Recall" /><category term="nDCG" /><category term="Benchmark" /><category term="BGE-M3" /><category term="KURE-v1" /><category term="E5" /><category term="법률검색" /><summary type="html"><![CDATA[초록]]></summary></entry><entry><title type="html">MySQL에서의 한국어 형태소 분석 및 전문검색 테스트</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer.html" rel="alternate" type="text/html" title="MySQL에서의 한국어 형태소 분석 및 전문검색 테스트" /><published>2024-10-01T00:00:00+00:00</published><updated>2024-10-01T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/10/01/mysql-korean-analyzer.html"><![CDATA[<h1 id="mysql에서-형태소-분석-및-전문검색-방법">MySQL에서 형태소 분석 및 전문검색 방법</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>Elasticsearch를 활용한 검색만을 사용하다가, ES검색을 사용하지 않고 DB로만 사용하고 싶다는 요구가 있어 만들어보게 되었다.</li>
+  <li>먼저, InnoDB에서 지원하는 FTS를 사용하여 ngram을 추가하고, 검색결과 고도화를 위해 MeCab을 이용하여 형태소 분석을 진행하였다.</li>
+</ul>
+
+<h3 id="1-mysql-fulltext-search">1. MySQL FullText Search</h3>
+
+<ul>
+  <li>MySQL 내 <strong>MyISAM은 MySQL5.5버전 이상부터 지원</strong>하고, <strong>InnoDB는 MySQL 5.6버전</strong>부터 FTS(FullText Search)를 지원한다. CJK(중국어, 일본어, 한국어)를 지원한다.</li>
+  <li>기본적인 InnoDB 전문검색(FTS)는 구분자(공백, 단어분리자)를 이용하여 토큰을 생성한다. 하지만 한국어는 <strong>조사와 같은 품사</strong>가 있어, 다른 방법을 사용해야 한다.</li>
+  <li>인덱스 파서 방식은 여러가지가 있지만 검색 시 가장 매칭이 높게 나올 수 있는 <code class="language-plaintext highlighter-rouge">ngram parser</code>방식을 사용하여 토큰화 해보았다.</li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">minimum_length</code>가 2인 경우</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 대한민국
+analyzer =&gt; 대한, 한민, 민국
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">minimum_length</code>가 3인 경우</p>
+
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 대한민국
+analyzer =&gt; 대한민, 한민국
+</code></pre></div>    </div>
+
+    <blockquote>
+      <p>위와 같이 MySQL에서 ngram은 단일 길이로만 토큰이 생성된다. 최소~최대 길이 ngram 토큰을 생성하는 Multi parser index를 사용하는 방식도 존재한다고 한다.</p>
+    </blockquote>
+  </li>
+  <li>
+    <p>사용방법</p>
+
+    <ol>
+      <li>
+        <p>Table 생성 시 검색 대상 필드에 사용한 분석기와 FTS 인덱스 설정 / 테이블 수정</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">articles</span>
+<span class="p">(</span>
+        <span class="n">FTS_DOC_ID</span> <span class="nb">BIGINT</span> <span class="nb">UNSIGNED</span> <span class="n">AUTO_INCREMENT</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span>
+        <span class="n">title</span> <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">100</span><span class="p">),</span>
+        <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span>
+<span class="p">)</span> <span class="n">Engine</span><span class="o">=</span><span class="n">InnoDB</span> <span class="nb">CHARACTER</span> <span class="k">SET</span> <span class="n">utf8mb4</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="mi">26</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="o">#</span> <span class="k">ALTER</span> <span class="k">TABLE</span> <span class="n">articles</span> <span class="k">ADD</span> <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span><span class="p">;</span>
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="o">#</span> <span class="k">CREATE</span> <span class="n">FULLTEXT</span> <span class="k">INDEX</span> <span class="n">ngram_idx</span> <span class="k">ON</span> <span class="n">articles</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">ngram</span><span class="p">;</span>
+</code></pre></div>        </div>
+
+        <p>데이터 생성…</p>
+      </li>
+      <li>
+        <p>토큰화된 데이터 확인 및 결과 유추</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">INSERT</span> <span class="k">INTO</span> <span class="n">articles</span> <span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">VALUES</span> <span class="p">(</span><span class="s1">'my sql'</span><span class="p">);</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">1</span> <span class="k">row</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">03</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SET</span> <span class="k">GLOBAL</span> <span class="n">innodb_ft_aux_table</span><span class="o">=</span><span class="nv">"test/articles"</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">00</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">INFORMATION_SCHEMA</span><span class="p">.</span><span class="n">INNODB_FT_INDEX_CACHE</span><span class="p">;</span>
+</code></pre></div>        </div>
+
+        <p>Set Global 쿼리는 테이블 최적화 시 테이블 크기에 따라 오래 걸릴 수 있기 때문에 FullText에 대한 캐시 확인</p>
+      </li>
+      <li>
+        <p>검색 시 SQL</p>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">articles</span> <span class="k">WHERE</span> <span class="k">MATCH</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="n">AGAINST</span><span class="p">(</span><span class="s1">'sql'</span> <span class="k">IN</span> <span class="nb">BOOLEAN</span> <span class="k">MODE</span><span class="p">);</span>
+</code></pre></div>        </div>
+
+        <p>추가적으로 제외어, 조건절 등 여러 검색 연산자를 지원함.</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: center">조건절</th>
+              <th style="text-align: left">설명</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align: center">+</td>
+              <td style="text-align: left">and 조건</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">-</td>
+              <td style="text-align: left">not 조건</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">&lt;</td>
+              <td style="text-align: left">검색순위 하햫</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">&gt;</td>
+              <td style="text-align: left">검색순위 상향</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">()</td>
+              <td style="text-align: left">검색결과 내 검색</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">~</td>
+              <td style="text-align: left">검색순위 최저 하향</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">*</td>
+              <td style="text-align: left">검색어 기준 전체검색</td>
+            </tr>
+            <tr>
+              <td style="text-align: center">""</td>
+              <td style="text-align: left">구문검색</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">articles</span> <span class="k">WHERE</span> <span class="k">MATCH</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="n">AGAINST</span><span class="p">(</span><span class="s1">'+sql -my'</span> <span class="k">IN</span> <span class="nb">BOOLEAN</span> <span class="k">MODE</span><span class="p">);</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>문제점</p>
+
+        <p>(정확성)해당 Analyzer를 사용했을 때, 검색의 결과는 나오지만, 사용자 니즈에 맞는 <strong>정확한 검색결과</strong>를 돌출하지 않는다.</p>
+
+        <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ex) 검색어: ten
+result: sentence, ten, ...
+</code></pre></div>        </div>
+
+        <p>위 에시에서 숫자를 검색했을떄 뜻하지 않은 sentence가 반환된다.</p>
+
+        <p>사용자의 의도를 파악하여 결과를 반환하려면 의미있는 단어에 대한 필터링이 필요했다.</p>
+
+        <p>위 조건에 맞추려면 형태소 분석이 필요하여 플러그인을 추가하게 되었다.</p>
+      </li>
+      <li>
+        <p>stopWord는 불용어 용어집을 추가하고, 토큰을 확인하여 불필요한 단어 추가</p>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<p>&lt;/br&gt;</p>
+
+<h3 id="2-mecab-한국어-형태소-분석">2. MeCab, 한국어 형태소 분석</h3>
+
+<ul>
+  <li>MySQL에서 MeCab을 플러그인 형태로 지원하고 있어 사용하게 되었다.</li>
+  <li>MeCab은 일본어 형태소 분석기 플러그인으로써, 기본적으로 한국어는 존재하지 않는다. 해당 플러그인으로 한국어 형태소 분석을 하기 위해 은전한닢의 사전을 사용한다.</li>
+  <li>은전한닢과 MaCab의 설치, 연결되어 있다는 가정으로 진행함</li>
+</ul>
+
+<ol>
+  <li><a href="https://kdm-korea.github.io/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html">은전한닙, MeCab 설치 =&gt;</a></li>
+  <li>
+    <p>Mysql 설정에 플러그인 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>vi /etc/mysql/my.cnf
+
+<span class="c"># mecab 한국어 사전 추가</span>
+<span class="o">[</span>mysqld]
+loose-mecab-rc-file <span class="o">=</span> /path/to/mecab/etc/mecabrc
+innodb_ft_min_token_size <span class="o">=</span> 1
+</code></pre></div>    </div>
+  </li>
+  <li>플러그인 설치
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">install</span> <span class="n">plugin</span> <span class="n">mecab</span> <span class="n">soname</span> <span class="s1">'libpluginmecab.so'</span><span class="p">;</span>
+</code></pre></div>    </div>
+  </li>
+  <li>테이블 생성 및 사용
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">articles_mecab</span> <span class="p">(</span><span class="n">id</span> <span class="nb">SERIAL</span> <span class="k">PRIMARY</span> <span class="k">KEY</span><span class="p">,</span> <span class="n">title</span> <span class="nb">VARCHAR</span><span class="p">(</span><span class="mi">255</span><span class="p">),</span> <span class="n">FULLTEXT</span><span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">WITH</span> <span class="n">PARSER</span> <span class="n">mecab</span><span class="p">)</span> <span class="nb">CHARACTER</span> <span class="k">SET</span> <span class="n">utf8</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">1</span><span class="p">.</span><span class="mi">26</span> <span class="n">sec</span><span class="p">)</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>결과 확인</p>
+
+    <div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mysql</span><span class="o">&gt;</span> <span class="k">INSERT</span> <span class="k">INTO</span> <span class="n">articles_mecab</span> <span class="p">(</span><span class="n">title</span><span class="p">)</span> <span class="k">VALUES</span> <span class="p">(</span><span class="s1">'my sql'</span><span class="p">);</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">1</span> <span class="k">row</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">03</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SET</span> <span class="k">GLOBAL</span> <span class="n">innodb_ft_aux_table</span><span class="o">=</span><span class="nv">"test/articles_mecab"</span><span class="p">;</span>
+<span class="n">Query</span> <span class="n">OK</span><span class="p">,</span> <span class="mi">0</span> <span class="k">rows</span> <span class="n">affected</span> <span class="p">(</span><span class="mi">0</span><span class="p">.</span><span class="mi">00</span> <span class="n">sec</span><span class="p">)</span>
+
+<span class="n">mysql</span><span class="o">&gt;</span> <span class="k">SELECT</span> <span class="o">*</span> <span class="k">FROM</span> <span class="n">INFORMATION_SCHEMA</span><span class="p">.</span><span class="n">INNODB_FT_INDEX_CACHE</span><span class="p">;</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+<html>
+  <body>
+    <ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins>    
+  </body>
+</html>
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="형태소 분석" /><summary type="html"><![CDATA[MySQL에서 형태소 분석 및 전문검색 방법]]></summary></entry><entry><title type="html">MySQL에 MeCab, 은전한닢 설치</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html" rel="alternate" type="text/html" title="MySQL에 MeCab, 은전한닢 설치" /><published>2024-09-27T00:00:00+00:00</published><updated>2024-09-27T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/mysql/analyzer/fulltext%20search/fts/mecab/2024/09/27/mysql-mecab-install.html"><![CDATA[<h1 id="mysql에-mecab-은전한닢-설치">MySQL에 MeCab, 은전한닢 설치</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>도커로 centos7을 띄어 설치하고 테스트해보았지만, 설치해야 되는 리스트가 많아 별도로 쓰게 되었다.</li>
+</ul>
+
+<h3 id="1-서버제원">1. 서버제원</h3>
+
+<ul>
+  <li>
+    <p>Docker image</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>docker pull centos:centos7.9.2009
+<span class="nv">$ </span>docker run <span class="nt">-ti</span> <span class="nt">-v</span> /sys/fs/cgroup:/sys/fs/cgroup:ro <span class="nt">-p</span> 80:80 centos:centos7.9.2009
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>OS 정보</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[</span>root@3ae62c03f268 ~]# <span class="nb">grep</span> <span class="nb">.</span> /etc/os-release
+<span class="nv">NAME</span><span class="o">=</span><span class="s2">"CentOS Linux"</span>
+<span class="nv">VERSION</span><span class="o">=</span><span class="s2">"7 (AltArch)"</span>
+<span class="nv">ID</span><span class="o">=</span><span class="s2">"centos"</span>
+<span class="nv">ID_LIKE</span><span class="o">=</span><span class="s2">"rhel fedora"</span>
+<span class="nv">VERSION_ID</span><span class="o">=</span><span class="s2">"7"</span>
+<span class="nv">PRETTY_NAME</span><span class="o">=</span><span class="s2">"CentOS Linux 7 (AltArch)"</span>
+<span class="nv">ANSI_COLOR</span><span class="o">=</span><span class="s2">"0;31"</span>
+<span class="nv">CPE_NAME</span><span class="o">=</span><span class="s2">"cpe:/o:centos:centos:7:server"</span>
+<span class="nv">HOME_URL</span><span class="o">=</span><span class="s2">"https://www.centos.org/"</span>
+<span class="nv">BUG_REPORT_URL</span><span class="o">=</span><span class="s2">"https://bugs.centos.org/"</span>
+<span class="nv">CENTOS_MANTISBT_PROJECT</span><span class="o">=</span><span class="s2">"CentOS-7"</span>
+<span class="nv">CENTOS_MANTISBT_PROJECT_VERSION</span><span class="o">=</span><span class="s2">"7"</span>
+<span class="nv">REDHAT_SUPPORT_PRODUCT</span><span class="o">=</span><span class="s2">"centos"</span>
+<span class="nv">REDHAT_SUPPORT_PRODUCT_VERSION</span><span class="o">=</span><span class="s2">"7"</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>CPU 정보</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">[</span>root@3ae62c03f268 ~]# lscpu
+Architecture:          aarch64
+Byte Order:            Little Endian
+CPU<span class="o">(</span>s<span class="o">)</span>:                8
+On-line CPU<span class="o">(</span>s<span class="o">)</span> list:   0-7
+Thread<span class="o">(</span>s<span class="o">)</span> per core:    1
+Core<span class="o">(</span>s<span class="o">)</span> per socket:    8
+Socket<span class="o">(</span>s<span class="o">)</span>:             1
+Model:                 0
+BogoMIPS:              48.00
+L1d cache:             unknown size
+L1i cache:             unknown size
+L2 cache:              unknown size
+Flags:                 fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<h3 id="2-설치">2. 설치</h3>
+
+<ol>
+  <li>
+    <p>yum 설치 및 확인</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>yum <span class="nt">--version</span>
+</code></pre></div>    </div>
+
+    <p>yum 사용 시 “curl#6 - “Could not resolve host: mirrorlist.centos.org;…” 에러 발생 시 아래 명령어 사용,</p>
+
+    <p>dns, 포트 등 다양한 원인으로 에러가 발생함, 에러 발생 저장소를 변경하는 형태로 사용</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">sed</span> <span class="nt">-i</span> <span class="s1">'s/mirrorlist/#mirrorlist/g'</span> /etc/yum.repos.d/CentOS-<span class="k">*</span>
+<span class="nv">$ </span><span class="nb">sed</span> <span class="nt">-i</span> <span class="s1">'s|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g'</span> /etc/yum.repos.d/CentOS-<span class="k">*</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>linux 기본 유틸 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>yum <span class="nb">install </span>wget
+yum <span class="nb">install </span>make
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>C, C++ 컴파일러 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># c complier gcc install</span>
+yum <span class="nb">install </span>gcc
+<span class="c"># gcc install check</span>
+gcc <span class="nt">--version</span>
+
+<span class="c"># c++ compiler g++ install</span>
+Yum <span class="nb">install </span>gcc-c++
+<span class="c"># g++ install check</span>
+g++ <span class="nt">--version</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>MeCab 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>wget https://bitbucket.org/eunjeon/mecab-ko/downloads/mecab-0.996-ko-0.9.2.tar.gz
+<span class="nv">$ </span><span class="nb">tar </span>xvfz mecab-0.996-ko-0.9.2.tar.gz
+<span class="nv">$ </span><span class="nb">cd </span>mecab-0.996-ko-0.9.2/
+<span class="nv">$ </span>./configure <span class="nt">--prefix</span><span class="o">=</span>/path/to/mecab
+<span class="nv">$ </span>make
+<span class="nv">$ </span>make <span class="nb">install</span>
+</code></pre></div>    </div>
+
+    <p>make 명령어 사용 시 arm64인 경우 make 커맨드에서 아래 오류발생..</p>
+
+    <blockquote>
+      <p>aarch64 configure: error: cannot guess build type;…</p>
+    </blockquote>
+
+    <p>configure에서 cpu 아키텍쳐를 명시하면 됨.</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>./configure <span class="nt">--prefix</span><span class="o">=</span>/path/to/mecab <span class="nt">--build</span><span class="o">=</span>aarch64-unknown-linux-gnu
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>은전한닢 설치</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>wget https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/mecab-ko-dic-2.1.1-20180720.tar.gz
+<span class="nv">$ </span><span class="nb">tar </span>xvfz mecab-ko-dic-2.1.1-20180720.tar.gz
+<span class="nv">$ </span><span class="nb">cd </span>mecab-ko-dic-2.1.1-20180720/
+<span class="nv">$ </span>./configure <span class="nt">--with-mecab-config</span><span class="o">=</span>/path/to/mecab/bin/mecab-config
+<span class="nv">$ </span>make
+<span class="nv">$ </span>make <span class="nb">install</span>
+</code></pre></div>    </div>
+
+    <p><strong>은전한닢</strong>은 가장 최근 사전으로 추가하여 사용, 2024.09 기준 최근 사전 추가함.</p>
+  </li>
+  <li>
+    <p>MeCab에 은전한닙 사전 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code>vi /path/to/mecab/etc/mecabrc
+
+<span class="c"># 경로변경</span>
+dicdir <span class="o">=</span>  /path/to/mecab/lib/mecab/dic/mecab-ko-dic/
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>라이브러리 경로 등록</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>vi ~/.bash_profile
+
+<span class="c">#내용추가</span>
+<span class="nb">export </span><span class="nv">PATH</span><span class="o">=</span>/path/to/mecab/bin/:<span class="nv">$PATH</span>
+<span class="nb">export </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span>/path/to/mecab/lib/:<span class="nv">$LD_LIBRARY_PATH</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>설정 동기화</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">source</span> ~/.bash_profile
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>테스트</p>
+
+    <div class="language-sh highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span><span class="nb">echo</span> <span class="s2">"꽁꽁 얼어붙은 한강위를 고양이가 걸어다닙니다."</span> |mecab
+
+꽁꽁	MAG,<span class="k">*</span>,T,꽁꽁,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+얼어붙	VV,<span class="k">*</span>,T,얼어붙,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+은	ETM,<span class="k">*</span>,T,은,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+한	MM,~가산명사,T,한,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+강위	NNG,<span class="k">*</span>,F,강위,Compound,<span class="k">*</span>,<span class="k">*</span>,강+위,강/NNG/<span class="k">*</span>/1/1+강위/Compound/<span class="k">*</span>/0/2+위/NNG/<span class="k">*</span>/1/1
+를	JKO,<span class="k">*</span>,T,를,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+고양이	NNG,<span class="k">*</span>,F,고양이,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+가	JKS,<span class="k">*</span>,F,가,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+걸	VV,<span class="k">*</span>,T,걸,Inflect,VV,VV,걷/VV,<span class="k">*</span>
+어	EC,<span class="k">*</span>,F,어,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+다닙니다	VV+EF,<span class="k">*</span>,F,다닙니다,Inflect,VV,EF,다니/VV+ᄇ니다/EF,<span class="k">*</span>
+<span class="nb">.</span>	SF,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>,<span class="k">*</span>
+EOS
+</code></pre></div>    </div>
+
+    <p>위 토큰에서 더 필요하다고 생각되는 토큰은 사용자 사전에 추가하여 사용하면 된다.</p>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="mysql" /><category term="analyzer" /><category term="fulltext search" /><category term="FTS" /><category term="MeCab" /><category term="형태소 분석" /><summary type="html"><![CDATA[MySQL에 MeCab, 은전한닢 설치]]></summary></entry><entry><title type="html">Elasticsearch 종료</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop.html" rel="alternate" type="text/html" title="Elasticsearch 종료" /><published>2024-09-20T00:00:00+00:00</published><updated>2024-09-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2024/09/20/elasticsearch-stop.html"><![CDATA[<h2 id="개요">개요</h2>
+
+<ul>
+  <li>엘라스틱 종료 시 보편적으로 Kill 명령어를 사용함. 하지만 강제 종료로 인해 미처리된 리소스 종료와 클러스터 정리 등 작업들을 정상적으로 완료하지 못함.</li>
+</ul>
+
+<h3 id="시그널을-추가한-종료">시그널을 추가한 종료</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>Kill SIGTERM <span class="k">${</span><span class="nv">PID</span><span class="k">}</span>
+</code></pre></div></div>
+
+<ul>
+  <li>위 시그널을 추가하게 되면 정상적인 엘라스틱서치 종료가 가능함.</li>
+</ul>
+
+<h3 id="치명적인-오류로-인한-중단">치명적인 오류로 인한 중단</h3>
+
+<ul>
+  <li>
+    <p>Elasticsearch에서 치명적인 오류 감지 시 자동으로 중지함. 해당 경우 아래 특수 코드를 함께 반환함.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align: left">에러코드</th>
+          <th style="text-align: left">설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align: left">158</td>
+          <td style="text-align: left">jvmkiller 에이전트에 의해 사망됨</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">143</td>
+          <td style="text-align: left">사용자 또는 커널 SIGTERM</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">137</td>
+          <td style="text-align: left">커널 oom-killer에 의해 살해됨</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">134</td>
+          <td style="text-align: left">세그먼테이션 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">128</td>
+          <td style="text-align: left">JVM 내부 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">127</td>
+          <td style="text-align: left">메모리 부족 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">126</td>
+          <td style="text-align: left">스택 오버플로우 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">125</td>
+          <td style="text-align: left">알 수 없는 가상 머신 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">124</td>
+          <td style="text-align: left">심각한 I/O 오류</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">78</td>
+          <td style="text-align: left">부트스트랩 검사 실패</td>
+        </tr>
+        <tr>
+          <td style="text-align: left">1</td>
+          <td style="text-align: left">알 수 없는 치명적인 오류</td>
+        </tr>
+      </tbody>
+    </table>
+  </li>
+</ul>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElasticSearch" /><category term="ElasticSearch stop" /><category term="ElasticSearch kill" /><category term="ElasticSearch signal" /><summary type="html"><![CDATA[개요]]></summary></entry><entry><title type="html">Elasticsearch Reindex 방법</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way.html" rel="alternate" type="text/html" title="Elasticsearch Reindex 방법" /><published>2023-03-02T00:00:00+00:00</published><updated>2023-03-02T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/03/02/es-reindex-way.html"><![CDATA[<h1 id="reindex">ReIndex</h1>
+
+<h2 id="개요">개요</h2>
+
+<ul>
+  <li>인덱스를 복제할 수 있는 방법이다. 대량의 문서를 재색인해야 하는 경우 혹은, 데이터 복제본을 이용한 무언가의 작업이 필요한 경우 데이터를 복제할 수 있는 기능이다.</li>
+</ul>
+
+<h3 id="데이터-이관-방법에-대한-협의">데이터 이관 방법에 대한 협의</h3>
+
+<ul>
+  <li>
+    <p>이전 데이터를 마이그래이션하는 과정에서 데이터를 어떤 방식으로 이관할지에 대한 논의가 나왔다.</p>
+
+    <ol>
+      <li>
+        <p>스냅샷을 이용한 데이터 이관</p>
+      </li>
+      <li>
+        <p>Reindex를 이용한 데이터 이관</p>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<p>스냅샷은 우리가 필요로 하는 데이터를 제외하고도 수많은 인덱스가 생성되어 있었고, 신규 엘라스틱에 색인된 데이터가 존재하는 상태였다. 하여 <code class="language-plaintext highlighter-rouge">Reindex</code>를 이용한 데이터 이관을 하게 되었다.</p>
+
+<h3 id="reindex-방법">ReIndex 방법</h3>
+
+<ol>
+  <li>
+    <p>기존 ES의 elasticsearch.yml에 신규 ES의 주소를 입력 후 재기동한다. 동일한 서버 내 이관 시에는 필요없다.</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">reindex.remote.whitelist</span><span class="pi">:</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>신규 es를 이용하는 키바나에서 아래 명령어를 입력한다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">POST</span> <span class="nx">_reindex</span><span class="p">?</span><span class="nx">wait_for_completion</span><span class="o">=</span><span class="kc">false</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">source</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_old</span><span class="dl">"</span>
+  <span class="p">},</span>
+  <span class="dl">"</span><span class="s2">dest</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_new</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">wait_for_complate</code>
+        <ul>
+          <li>끝나는 시점까지 기다릴지 여부</li>
+        </ul>
+      </li>
+      <li>
+        <p>elasticsearch의 http는 <strong>Timeout</strong>이 <strong>30초</strong>가 기본값이다.</p>
+
+        <p>&lt;/br&gt;</p>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>반환된 태스크값을 이용하여 실행경과를 확인한다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">GET</span> <span class="nx">_tasks</span><span class="o">/</span><span class="nx">jrw3kRS2QaGqunpyqm7Paw</span><span class="p">:</span><span class="mi">40188327</span>
+</code></pre></div>    </div>
+  </li>
+</ol>
+
+<hr />
+
+<h3 id="이슈사항">이슈사항</h3>
+
+<ol>
+  <li>
+    <p>thread pool</p>
+
+    <p>위와 같은 방법으로 진행했을 때 thread가 pool나는 현상이 발생했다. 확인해보니, 데이터의 크기가 커서 생기는 문제였다. 기본 배치의 문서 갯수는 1,000이 기본값이다.</p>
+
+    <p>ES에서는 100mb 이하의 용량으로 인덱싱 작업을 권장하였고, 현행 데이터에서 평균크기를 구하여 100개씩 색인하였다. 또한, 특수하게 큰 데이터가 존재할 수 있어, scroll 시간을 60분으로 맞추었다.</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  <span class="nx">POST</span> <span class="nx">_reindex</span><span class="p">?</span><span class="nx">wait_for_completion</span><span class="o">=</span><span class="kc">false</span><span class="o">&amp;</span><span class="nx">scroll</span><span class="o">=</span><span class="mi">60</span><span class="nx">m</span>
+  <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">source</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_old</span><span class="dl">"</span><span class="p">,</span>
+      <span class="dl">"</span><span class="s2">size</span><span class="dl">"</span><span class="p">:</span> <span class="mi">100</span>
+    <span class="p">},</span>
+    <span class="dl">"</span><span class="s2">dest</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+      <span class="dl">"</span><span class="s2">index</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">index_new</span><span class="dl">"</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+</code></pre></div>    </div>
+  </li>
+  <li>
+    <p>rejected exception</p>
+
+    <p>해당 문제는 한번에 너무 많은 문서를 reindex하여 발생하는 문제였다. 수많은 벌크 인덱스가 인입되었으며, 처리속도가 이를 따라가지 못해 큐가 다 차버리면서 es가 동작하지 않았다.&lt;/br&gt;
+큐의 할당은 <strong>1,000</strong>이 기본값이다.&lt;/br&gt;
+해당 문제 해결을 위해 큐 사이즈를 5,000으로 변경하고 reindex의 갯수를 두개씩 진행하는 방향으로 설정하였다.</p>
+  </li>
+</ol>
+
+<h3 id="테스트">테스트</h3>
+
+<p>reindex 작업 시 배치 사이즈가 클수록 재색인 속도가 빠를까?</p>
+
+<ol>
+  <li>size를 10개로 잡아 재색인</li>
+  <li>size를 1,000로 잡아 재색인</li>
+</ol>
+
+<p>데이터를 테스트해본 결과 확연하게 배치가 클수록 속도가 빨랐다.&lt;/br&gt;
+서버간 이관이라 3 way handshake도 지속적으로 이루어질테고, 데이터 복사에 따른 피봇관리가 리소스를 차지한다고 생각이 들었다.&lt;/br&gt;
+문서 각기의 데이터를 유추할 수 있다면 100mb 이하가 되는한 가장 큰 사이즈로 구성하는것을 추천한다.</p>
+
+<h3 id="속도개선">속도개선</h3>
+
+<p>reindex 진행 시 속도를 개선할 수 있는점을 확인해보았다.&lt;/br&gt;
+물론 성능를 높이는 서버 증설이나, 힙메모리 증대는 허용하는 최대치(31GB)를 맞춰놓은 상태였다.&lt;/br&gt;
+index의 replica shard의 갯수를 0으로 변경하여 재색인 속도를 향상시켰다.</p>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch reindex" /><category term="ElasticSearch Data Migration" /><summary type="html"><![CDATA[ReIndex]]></summary></entry><entry><title type="html">Elasticsearch Cluster node 재시작</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart.html" rel="alternate" type="text/html" title="Elasticsearch Cluster node 재시작" /><published>2023-01-22T00:00:00+00:00</published><updated>2023-01-22T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/22/elastic-cluster-restart.html"><![CDATA[<h1 id="elasticsearch-cluster-node-재시작">Elasticsearch Cluster node 재시작</h1>
+
+<h3 id="1-개요">1. 개요</h3>
+
+<ol>
+  <li>
+    <p>고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 순서를 적어놓는다.</p>
+  </li>
+  <li>
+    <p>ES의 설정 변경/ 서버 가감 등, 관리자의 의도된 서버 재시작에 대한 작업은 Rolling Restart의 방법을 사용하는 것이 좋다.</p>
+  </li>
+</ol>
+
+<h3 id="2-rolling-restart-순서">2. Rolling Restart 순서</h3>
+
+<ol>
+  <li>
+    <p>ReBalancing Disable</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">PUT</span> <span class="nx">_cluster</span><span class="o">/</span><span class="nx">settings</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">transient</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">cluster.routing.allocation.enable</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">primary</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <p>ES 기본 설정으로 노드의 가감이 일어나게 되면 Shard의 Rebalancing이 일어나게 되어 검색속도 및 색인속도에 영향을 받게 된다.</p>
+
+    <p>아래 옵션 적용 시 노드 증설 시 사드의 리밸런싱을 맏아 리소스를 낭비를 최소화할 수 있다.</p>
+  </li>
+  <li>
+    <p>노드 가감 &amp; 재기동</p>
+  </li>
+  <li>
+    <p>ReBalancing able</p>
+
+    <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">PUT</span> <span class="nx">_cluster</span><span class="o">/</span><span class="nx">settings</span>
+<span class="p">{</span>
+  <span class="dl">"</span><span class="s2">transient</span><span class="dl">"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="dl">"</span><span class="s2">cluster.routing.allocation.enable</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">all</span><span class="dl">"</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>    </div>
+
+    <p>리밸런싱을 활성화한다. 리밸런싱 기능이 켜져있지 않다면, <code class="language-plaintext highlighter-rouge">Primary Shard</code>가 소실되었을 때 <code class="language-plaintext highlighter-rouge">Replica Shard</code>가 존재하더라도 <code class="language-plaintext highlighter-rouge">Primary Shard</code>로 승격되는 일이 일어나지 않는다. 또한 신규 색인 시 각 노드간 데이터의 Shard 불균형을 초래하게 된다.</p>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch Cluster" /><category term="Node Cluster restart" /><category term="Node restart" /><summary type="html"><![CDATA[Elasticsearch Cluster node 재시작]]></summary></entry><entry><title type="html">Elasticsearch Cluster node 증설</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add.html" rel="alternate" type="text/html" title="Elasticsearch Cluster node 증설" /><published>2023-01-20T00:00:00+00:00</published><updated>2023-01-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/cluster-node-add.html"><![CDATA[<h1 id="elasticsearch-cluster-node-증설">Elasticsearch Cluster node 증설</h1>
+
+<h3 id="1-개요">1. 개요</h3>
+
+<ol>
+  <li>고가용성 및 검색속도 안정화를 위해, 노드 2대에서 6대로 ES서버를 늘려야 되는 상황이 발생했다. 클러스터의 노드를 증설 시 ES 설정</li>
+</ol>
+
+<h3 id="2-서버-증설을-위한-es-설정">2. 서버 증설을 위한 ES 설정</h3>
+
+<ol>
+  <li>
+    <p>ES 클러스터를 위한 기본설정</p>
+
+    <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node1</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s">111.0.111.111</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">"</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">node1"</span><span class="pi">]</span>
+</code></pre></div>    </div>
+
+    <ol>
+      <li>cluster.name
+        <ol>
+          <li>클러스터를 구성하는 이름, ES의 모든 클러스터명은 동일해야 같은 집단으로 구성됨</li>
+        </ol>
+      </li>
+      <li>node.name
+        <ol>
+          <li>각 ES의 별칭, 고유한 값을 지녀야 함</li>
+        </ol>
+      </li>
+      <li>network.host
+        <ol>
+          <li>클러스터 구성을 위한 네크워크 IP</li>
+        </ol>
+      </li>
+      <li>discovery.seed_hosts
+        <ol>
+          <li>Cluster를 구성하는 모든 ES의 IP:PORT</li>
+          <li>해당 PORT는 내부 통신 포트(transport.port)로 구성해야 함.</li>
+        </ol>
+      </li>
+      <li>cluster.initial_master_nodes
+        <ol>
+          <li>클러스터를 구성하기 위한 노드명</li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+  <li>
+    <p>예시</p>
+
+    <ul>
+      <li>
+        <p>1번 노드</p>
+
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node1</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">100</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">101</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>2번 노드</p>
+
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node2</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">200</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">201</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+      <li>
+        <p>3번 노드</p>
+        <div class="language-yaml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">------------------------ Cluster -------------------------</span>
+<span class="na">cluster.name</span><span class="pi">:</span> <span class="s">cluster_test</span>
+<span class="s">-------------------------- Node --------------------------</span>
+<span class="na">node.name</span><span class="pi">:</span> <span class="s">node3</span>
+<span class="s">------------------------- NetWork ------------------------</span>
+<span class="na">network.host</span><span class="pi">:</span> <span class="s1">'</span><span class="s">111.0.111.111'</span>
+<span class="na">http.port</span><span class="pi">:</span> <span class="m">300</span>
+<span class="na">transport.port</span><span class="pi">:</span> <span class="m">301</span>
+<span class="s">------------------------- Discovery ----------------------</span>
+<span class="na">discovery.seed_hosts</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">111.0.111.111:101'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:201'</span><span class="pi">,</span> <span class="s1">'</span><span class="s">111.0.111.111:301'</span><span class="pi">]</span>
+<span class="na">cluster.initial_master_nodes</span><span class="pi">:</span> <span class="pi">[</span><span class="s1">'</span><span class="s">node1'</span><span class="pi">,</span> <span class="nv">node2</span><span class="pi">,</span> <span class="nv">node3</span><span class="pi">]</span>
+</code></pre></div>        </div>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <p>클러스터 설정 시 주의점</p>
+    <ol>
+      <li>minium master node
+        <ol>
+          <li>데이터를 유지할 수 있는 최소 Master Node의 수를 기입</li>
+          <li>Master Node가 최소 Master Node 보다 적게 구동된다면 Split Brain이 발생할 수 있음.</li>
+        </ol>
+      </li>
+    </ol>
+  </li>
+</ol>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="ElasticSearch Cluster" /><category term="Node Cluster" /><summary type="html"><![CDATA[Elasticsearch Cluster node 증설]]></summary></entry><entry><title type="html">ElasticSearch OLD GC로 인한 OOM 발생이슈</title><link href="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue.html" rel="alternate" type="text/html" title="ElasticSearch OLD GC로 인한 OOM 발생이슈" /><published>2023-01-20T00:00:00+00:00</published><updated>2023-01-20T00:00:00+00:00</updated><id>https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue</id><content type="html" xml:base="https://kdm-korea.github.io/jekyll-theme-yat/elasticsearch/2023/01/20/elastic-oom-issue.html"><![CDATA[<h2 id="elasticsearch-old-gc로-인한-oom-발생이슈">ElasticSearch OLD GC로 인한 OOM 발생이슈</h2>
+
+<p>10,000여건 되는 데이터를 색인하던 중 ES의 클러스터에서 힙메모리가 급작스럽에 풀을 쳤다. GC 로그를 확인해보니 OLD GC가 초당 5번정도 일어나고 있었다.</p>
+
+<p>운영이 시작된 시점에서 Aggregation의 호출이 많아 생기는 문제로 생각되어 GC를 수정하는 방향을 생각했다. 사용하는 GC는 CMS GC를 사용하고 있었으며, G1GC를 통해 OLD GC를 줄이는 방식을 생각했다.</p>
+
+<p>하지만 GC의 문제는 아니었고, 이용자가 없는 새벽 시간에도 GC는 짧은 간격으로 돌고 있었다. 데이터를 전체적으로 다시 색인하면서 시간 체크를 통해 데이터 상 문제가 있는지 체크하였다. 다음날 확인해보니 유독 색인에 긴 시간을 필요로 하는 데이터가 존재했다.</p>
+
+<p>해당 데이터의 필드는 공백 없이 10,000자가 넘어갔다.</p>
+
+<p>확인해보니, lucene에서 데이터 분석 시 토큰분석 가능 길이를 넘어 발생하는 문제였다. 해당 데이터는 중요도가 떨어지는 데이터로 판단되어 500자 기준으로 공백을 넣어 색인 처리하였다.</p>
+
+<p><ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins></p>
+
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async=""></script>
+
+<script>
+function changeGiscusTheme () {
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' 'preferred_color_scheme' : 'light_tritanopia'
+
+    console.log(theme)
+
+    function sendMessage(message) {
+      const iframe = document.querySelector('iframe.giscus-frame');
+      if (!iframe) return;
+      iframe.contentWindow.postMessage({ giscus: {
+      setConfig: {
+        theme: theme
+      }
+    } }, 'https://giscus.app');
+    }
+
+    sendMessage({
+      setConfig: {
+        theme: theme
+      }
+    });
+  }
+</script>
+
+<script src="https://giscus.app/client.js" data-repo="kdm-korea/kdm-korea.github.io" data-repo-id="R_kgDOIzxYeA" data-category="Q&amp;A" data-category-id="DIC_kwDOIzxYeM4CTtII" data-mapping="pathname" data-strict="0" data-reactions-enabled="1" data-emit-metadata="0" data-input-position="top" data-theme="light_tritanopia" data-lang="ko" crossorigin="anonymous" async="">
+</script>]]></content><author><name>Sino</name></author><category term="ElasticSearch" /><category term="ElaticSearch" /><category term="Node Cluster" /><category term="Old GC" /><category term="ElasticSearch OOM" /><summary type="html"><![CDATA[ElasticSearch OLD GC로 인한 OOM 발생이슈]]></summary></entry></feed>

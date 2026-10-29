@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-translate-customization" content="108d9124921d80c3-80e20d618ff053c8-g4f02ec6f3dba68b7-c">
+<!-- Begin Jekyll SEO tag v2.9.1 -->
+<title>법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획 | Sino</title>
+<meta name="generator" content="Jekyll v4.4.1">
+<meta property="og:title" content="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">
+<meta name="author" content="Sino">
+<meta property="og:locale" content="en_US">
+<meta name="description" content="1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가">
+<meta name="twitter:description" property="og:description" content="1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가">
+<link rel="canonical" href="https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html">
+<meta property="og:url" content="https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html">
+<meta property="og:site_name" content="Sino">
+<meta property="og:type" content="article">
+<meta property="article:published_time" content="2026-10-24T00:00:00+00:00">
+<meta property="article:modified_time" content="2026-10-24T00:00:00+00:00">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획">
+<meta name="google-site-verification" content="RKvmYbDZxM9Aj_4L3bMcZIAlJOtCkyhNZb8zhskM5o0">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Sino"},"dateModified":"2026-10-24T00:00:00+00:00","datePublished":"2026-10-24T00:00:00+00:00","description":"1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가","headline":"법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획","mainEntityOfPage":{"@type":"WebPage","@id":"https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html"},"url":"https://kdm-korea.github.io/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="icon" href="">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/typeface-noto-sans@0.0.72/index.min.css">
+  <link rel="stylesheet" href="/jekyll-theme-yat/assets/css/main.css">
+  <script src="/jekyll-theme-yat/assets/js/main.js"></script><link type="application/atom+xml" rel="alternate" href="https://kdm-korea.github.io/jekyll-theme-yat/feed.xml" title="Sino">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/default.min.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js"></script>
+<!-- and it's easy to individually load additional languages -->
+<script charset="UTF-8" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/languages/go.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+// Init highlight js
+document.addEventListener('DOMContentLoaded', function(event) {
+  var els = document.querySelectorAll('pre code')
+
+  function addLangData(block) {
+    var outer = block.parentElement.parentElement.parentElement;
+    var lang = block.getAttribute('data-lang');
+    for (var i = 0; i < outer.classList.length; i++) {
+      var cls = outer.classList[i];
+      if (cls.startsWith('language-')) {
+        lang = cls;
+        break;
+      }
+    }
+    if (!lang) {
+      cls = block.getAttribute('class');
+      lang = cls ? cls.replace('hljs ', '') : '';
+    }
+    if (lang.startsWith('language-')) {
+      lang = lang.substr(9);
+    }
+    block.setAttribute('class', 'hljs ' + lang);
+    block.parentNode.setAttribute('data-lang', lang);
+  }
+
+  function addBadge(block) {
+    var enabled = ('true' || 'true').toLowerCase();
+    if (enabled == 'true') {
+      var pre = block.parentElement;
+      pre.classList.add('badge');
+    }
+  }
+
+  function handle(block) {
+    addLangData(block);
+    addBadge(block)
+    hljs.highlightBlock(block);
+  }
+
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    handle(el);
+  }
+});
+</script>
+
+<style>
+  /* code language badge */
+  pre.badge::before {
+    content: attr(data-lang);
+    color: #fff;
+    background-color: #ff4e00;
+    padding: 0 .5em;
+    border-radius: 0 2px;
+    text-transform: uppercase;
+    text-align: center;
+    min-width: 32px;
+    display: inline-block;
+    position: absolute;
+    right: 0;
+  }
+
+  /* fix wrong badge display for firefox browser */
+  code > table pre::before {
+    display: none;
+  }
+</style>
+
+</head>
+<body>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<header class="site-header " role="banner">
+
+  <div class="wrapper">
+    <div class="site-header-inner">
+<span class="site-brand"><a class="site-brand-inner" rel="author" href="/jekyll-theme-yat/">
+  <img class="site-favicon" title="Sino" src="" onerror="this.style.display='none'">
+  Sino
+</a>
+</span><nav class="site-nav">
+          <input type="checkbox" id="nav-trigger" class="nav-trigger">
+          <label for="nav-trigger">
+            <span class="menu-icon">
+              <svg viewbox="0 0 18 15" width="18px" height="15px">
+                <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"></path>
+              </svg>
+            </span>
+          </label>
+
+          <div class="trigger">
+<a class="page-link" href="/jekyll-theme-yat/about.html">ABOUT</a><a class="page-link" href="/jekyll-theme-yat/archives.html">ARCHIVES</a><a class="page-link" href="/jekyll-theme-yat/categories.html">CATEGORIES</a><a class="page-link" href="/jekyll-theme-yat/">HOME</a><a class="page-link" href="/jekyll-theme-yat/tags.html">TAGS</a>
+
+
+
+
+
+
+
+
+
+<span class="page-link">
+
+
+
+<div id="google_translate_element" style="display: none;">
+</div>
+
+<span class="ct-language">
+  <ul class="list-unstyled ct-language-dropdown">
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="en">
+          
+          <img src="https://cdn.countryflags.com/thumbs/united-states-of-america/flag-400.png" title="English">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="fr">
+          
+          <img src="https://cdn.countryflags.com/thumbs/france/flag-400.png" title="French">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="zh-CN">
+          
+          <img src="https://cdn.countryflags.com/thumbs/china/flag-400.png" title="Chinese(Simple)">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ja">
+          
+          <img src="https://cdn.countryflags.com/thumbs/japan/flag-400.png" title="Japanese">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ko">
+          
+          <img src="https://cdn.countryflags.com/thumbs/south-korea/flag-400.png" title="Korean">
+          
+        </a>
+      </li>
+    
+      <li>
+        <a href="#" class="lang-select" data-lang="ru">
+          
+          <img src="https://cdn.countryflags.com/thumbs/russia/flag-400.png" title="Russian">
+          
+        </a>
+      </li>
+    
+  </ul>
+</span>
+
+<script type="text/javascript">
+function googleTranslateElementInit() {
+  new google.translate.TranslateElement({
+    pageLanguage: 'en',
+    autoDisplay: false,
+    layout: google.translate.TranslateElement.InlineLayout.VERTICAL
+  }, 'google_translate_element');
+
+  // Links to cross-origin destinations are unsafe
+  var gll = document.getElementsByClassName('goog-logo-link')[0];
+  if (gll) {
+    gll.setAttribute('rel', 'noopener');
+  }
+
+  function restoreLang() {
+    var iframe = document.getElementsByClassName('goog-te-banner-frame')[0];
+    if (!iframe) return;
+
+    var innerDoc = iframe.contentDocument || iframe.contentWindow.document;
+    var restore_el = innerDoc.getElementsByTagName("button");
+
+    for (var i = 0; i < restore_el.length; i++) {
+      if (restore_el[i].id.indexOf("restore") >= 0) {
+        restore_el[i].click();
+        var close_el = innerDoc.getElementsByClassName("goog-close-link");
+        close_el[0].click();
+        return;
+      }
+    }
+  }
+
+  function triggerHtmlEvent(element, eventName) {
+    var event;
+    if (document.createEvent) {
+      event = document.createEvent('HTMLEvents');
+      event.initEvent(eventName, true, true);
+      element.dispatchEvent(event);
+    } else {
+      event = document.createEventObject();
+      event.eventType = eventName;
+      element.fireEvent('on' + event.eventType, event);
+    }
+  }
+
+  var googleCombo = document.querySelector("select.goog-te-combo");
+  var langSelect = document.querySelector('.ct-language');
+  langSelect.addEventListener('click', function(event) {
+    if (!event.target) {
+      return;
+    }
+
+    var selected = document.querySelector('.ct-language .ct-language-selected');
+    if (selected) {
+      selected.classList.remove('ct-language-selected');
+    }
+
+    var target = event.target;
+    while (target && target !== langSelect ) {
+      if (target.matches('.lang-select')) {
+        break;
+      }
+      target = target.parentElement;
+    }
+
+    if (target && target.matches('.lang-select')) {
+      var lang = target.getAttribute('data-lang');
+      if (googleCombo.value == lang) {
+        restoreLang();
+      } else {
+        target.parentElement.classList.add('ct-language-selected');
+        googleCombo.value = lang;
+        triggerHtmlEvent(googleCombo, 'change');
+      }
+    }
+
+    event.preventDefault();
+  });
+}
+</script>
+
+<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</span>
+</div>
+        </nav>
+</div>
+  </div>
+</header>
+
+<script>
+  function initHeader() {
+    var lastScrollY = getScrollPos().y;
+    var documentElement = document.documentElement;
+
+    function storeScrollData() {
+      var y = getScrollPos().y;var scrollStatus = "";
+
+      if (y <= 0) {
+        scrollStatus = "top";
+      } else if ((window.innerHeight + y) >= document.body.offsetHeight) {
+        scrollStatus = "bottom";
+      } else {
+        var isScrollDown = (y - lastScrollY > 0) ? true : false;
+        scrollStatus = isScrollDown ? "down" : "up";
+      }
+
+      lastScrollY = y;
+      documentElement.setAttribute("data-scroll-status", scrollStatus);
+    }
+
+    window.addEventListener('scroll', function(e) {
+      storeScrollData();
+    });
+
+    storeScrollData();
+  }
+  document.addEventListener('DOMContentLoaded', initHeader);
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+  function hashLocate(hashValue) {
+    hashValue = hashValue.replace(/^.*#h-/, '');
+    hashValue = decodeURIComponent(hashValue);
+    var element = document.getElementById(hashValue);
+
+    if (!element) {
+      return;
+    }
+
+    var header = document.querySelector('header.site-header');
+    var headerRect = header.getBoundingClientRect();
+    var headerTop = Math.floor(headerRect.top);
+    var headerHeight = Math.floor(headerRect.height);
+    var scrollPos = getScrollPos();
+    var offsetY = element.offsetTop - (headerTop + headerHeight + 20);
+
+    if (offsetY == scrollPos.y) {
+      return;
+    }
+
+    if (headerTop == 0  && offsetY > scrollPos.y) {
+      offsetY += headerHeight + 2;
+    } else if (headerTop < 0  && offsetY < scrollPos.y) {
+      offsetY -= headerHeight - 2;
+    }
+
+    smoothScrollTo(offsetY);
+  }
+
+  // The first event occurred
+  window.addEventListener('load', function(event) {
+    if (window.location.hash) {
+      hashLocate(window.location.hash);
+    }
+  });
+
+  // The first event occurred
+  window.addEventListener('click', function(event) {
+    if (event.target.tagName.toLowerCase() == 'a') {
+      hashLocate(event.target.getAttribute('href'));
+    }
+  });
+</script>
+<div class="theme-toggle">
+  <input type="checkbox" id="theme-switch">
+  <label for="theme-switch">
+    <div class="toggle"></div>
+    <div class="names">
+      <p class="light">Light</p>
+      <p class="dark">Dark</p>
+    </div>
+  </label>
+</div>
+
+
+
+
+<script>
+  (function() {
+    var sw = document.getElementById('theme-switch');
+    var html = document.getElementsByTagName('html')[0];
+    var nightModeOption = ('auto' || 'auto').toLowerCase();
+    var storage = nightModeOption === 'manual'
+        ? localStorage
+        : sessionStorage;
+    var themeData = loadThemeData();
+
+    function saveThemeData(data) {
+      storage.setItem('theme', JSON.stringify(data));
+    }
+
+    function loadThemeData() {
+      var data = storage.getItem('theme');
+      try {
+        data = JSON.parse(data ? data : '');
+      } catch(e) {
+        data = { nightShift: undefined, autoToggleAt: 0 };
+        saveThemeData(data);
+      }
+      return data;
+    }
+
+    function handleThemeToggle(nightShift) {
+      themeData.nightShift = nightShift;
+      saveThemeData(themeData);
+      html.dataset.theme = nightShift ? 'dark' : 'light';
+      setTimeout(function() {
+        sw.checked = nightShift ? true : false;
+      }, 50);
+    }
+
+    function autoThemeToggle() {
+      // Next time point of theme toggle
+      var now = new Date();
+      var toggleAt = new Date();
+      var hours = now.getHours();
+      var nightShift = hours >= 19 || hours <=7;
+
+      if (nightShift) {
+        if (hours > 7) {
+          toggleAt.setDate(toggleAt.getDate() + 1);
+        }
+        toggleAt.setHours(7);
+      } else {
+        toggleAt.setHours(19);
+      }
+
+      toggleAt.setMinutes(0);
+      toggleAt.setSeconds(0);
+      toggleAt.setMilliseconds(0)
+
+      var delay = toggleAt.getTime() - now.getTime();
+
+      // auto toggle theme mode
+      setTimeout(function() {
+        handleThemeToggle(!nightShift);
+      }, delay);
+
+      return {
+        nightShift: nightShift,
+        toggleAt: toggleAt.getTime()
+      };
+    }
+
+    // Listen the theme toggle event
+    sw.addEventListener('change', function(event) {
+      handleThemeToggle(event.target.checked);
+    });
+
+    if (nightModeOption == 'auto') {
+      var data = autoThemeToggle();
+
+      // Toggle theme by local setting
+      if (data.toggleAt > themeData.autoToggleAt) {
+        themeData.autoToggleAt = data.toggleAt;
+        handleThemeToggle(data.nightShift);
+      } else {
+        handleThemeToggle(themeData.nightShift);
+      }
+    } else if (nightModeOption == 'manual') {
+      handleThemeToggle(themeData.nightShift);
+    } else {
+      var nightShift = themeData.nightShift;
+      if (nightShift === undefined) {
+        nightShift = nightModeOption === 'on';
+      }
+      handleThemeToggle(nightShift);
+    }
+  })();
+</script>
+<div id="click-to-top" class="click-to-top">
+  <i class="fa fa-arrow-up"></i>
+</div>
+<script>
+  (function () {
+    const clickToTop = document.getElementById('click-to-top');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 100) {
+        clickToTop.classList.add('show')
+      }else {
+        clickToTop.classList.remove('show')
+      }
+    });
+    clickToTop.addEventListener('click', () => {
+      window.smoothScrollTo(0);
+    });
+  })();
+</script>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <div class="framework">
+  <section class="main">
+
+     <div class="post">
+  <section>
+
+
+
+
+
+
+
+
+
+<header class="post-header">
+  <h1 class="post-title p-name" itemprop="name headline">법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획</h1>
+  <h2 class="post-subtitle">임베딩 모델 선정부터 PDF 처리와 법률 근거 기반 답변 검증까지</h2>
+
+  <p class="post-meta">
+    <time class="dt-published" datetime="2026-10-24T00:00:00+00:00" itemprop="datePublished"><i class="fa fa-calendar"></i> Oct 24, 2026
+    </time>
+
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <span class="post-reading-time left-vsplit"><i class="fa fa-clock-o"></i> About 6 mins</span>
+  </p>
+<div class="post-tags">
+<a class="post-tag" href="/jekyll-theme-yat/tags.html#RAG">#RAG</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#Embedding">#Embedding</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#Chunking">#Chunking</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#PDF">#PDF</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#Retrieval">#Retrieval</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#Evaluation">#Evaluation</a><a class="post-tag" href="/jekyll-theme-yat/tags.html#%EB%B2%95%EB%A5%A0%EA%B2%80%EC%83%89">#법률검색</a>
+</div></header>
+<article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+    <div class="post-content e-content" itemprop="articleBody">
+
+      <h2 id="1-법률-rag를-만들기-위해-무엇을-검증할-것인가">1. 법률 RAG를 만들기 위해 무엇을 검증할 것인가</h2>
+
+<p>법률 문서에서 필요한 근거를 찾고, 그 근거를 바탕으로 답변하는 RAG(Retrieval-Augmented Generation, 검색 증강 생성)를 개발하려 한다. 이를 위해 문서 처리부터 검색과 답변 생성까지 단계별로 테스트하고, 기술 선택의 근거를 연구 자료로 남긴다. 어떤 단계에서 정보가 손실되고 어떤 변경이 결과를 개선하는지 확인하는 것이 목적이다.</p>
+
+<p>연구는 임베딩 모델 선정에서 시작해, 문서를 나누는 방법과 PDF에서 정보를 추출하는 방법을 비교하고, 검색한 법률 근거로 답변하는 과정을 검증하는 방향으로 진행한다.</p>
+
+<p><strong>이 글은 시리즈의 첫 글로, 전체 연구 목적과 단계별 평가 계획을 안내한다.</strong> 연구 순서에 따라 실험을 진행하고, 이후 포스트에서 각 단계의 데이터, 실험 조건, 결과와 실패 사례를 구체적으로 다룬다.</p>
+
+<h2 id="2-연구-흐름-문서를-읽고-근거를-찾고-답변을-검증한다">2. 연구 흐름: 문서를 읽고, 근거를 찾고, 답변을 검증한다</h2>
+
+<p>임베딩 모델을 비교한 뒤, 청킹과 PDF 처리 실험에 필요한 평가 데이터와 정답 기준을 준비한다. 이후 문서 처리, 검색, 답변 생성으로 범위를 넓힌다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>단계</th>
+      <th>연구할 내용</th>
+      <th>판단할 질문</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<ol>
+  <li>임베딩 모델 선정</li>
+</ol>
+</td>
+      <td>같은 판례에 대한 모델별 검색 비교</td>
+      <td>관련 문서를 잘 찾는가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>평가 데이터와 정답 기준</li>
+</ol>
+</td>
+      <td>질문·정답 근거·기대 답변 매핑</td>
+      <td>무엇을 정답으로 인정할 것인가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>법률 텍스트 청킹</li>
+</ol>
+</td>
+      <td>조/항/호·문단·고정 길이 분할</td>
+      <td>필요한 맥락과 예외가 보존되는가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>PDF 파싱</li>
+</ol>
+</td>
+      <td>문단·읽기 순서·표·이미지 추출</td>
+      <td>원문 정보가 정확히 추출되는가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>PDF 청킹·임베딩</li>
+</ol>
+</td>
+      <td>페이지 경계와 문서 구조 처리</td>
+      <td>필요한 내용을 검색 가능한 단위로 표현하는가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>검색·재정렬</li>
+</ol>
+</td>
+      <td>벡터·키워드·하이브리드·reranker 비교</td>
+      <td>답변에 필요한 근거가 상위에 모이는가?</td>
+    </tr>
+    <tr>
+      <td>
+<ol>
+  <li>근거 기반 답변</li>
+</ol>
+</td>
+      <td>사실관계와 법령·판례를 결합</td>
+      <td>결론과 인용이 근거에 부합하는가?</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>첫 단계인 판례 문서 단위 임베딩 비교는 완료했다. 구체적인 모델 선택 근거는 해당 결과 글에서 설명한다. 법령·청크·PDF에 적용했을 때의 성능은 각 실험에서 별도로 확인한다.</p>
+
+<h2 id="3-실험-전에-정답의-단위를-정한다">3. 실험 전에 정답의 단위를 정한다</h2>
+
+<p>문서 검색에서는 관련 문서 ID가 정답이 될 수 있다. 하지만 청킹을 비교할 때는 관련 문서 안의 어느 부분이 필요한 근거인지도 알아야 한다. 정답 문서에서 가져온 청크라도 질문과 무관한 내용일 수 있기 때문이다.</p>
+
+<p>따라서 질문별로 정답 문서, 페이지, 가능한 경우 근거 구간과 기대 답변을 매핑한다. 여기서 매핑은 질문에 대응하는 정답 근거와 답변의 관계를 기록하는 작업이다. 법률 적용 질문에는 필요한 조문과 판단 기준 날짜도 기록한다. 기존 공개 평가 데이터를 우선 활용하고, 부족한 유형을 보완한다.</p>
+
+<p>검색 단위가 바뀌어도 정답의 의미는 유지해야 한다. 하나의 근거를 여러 청크가 반복해서 담고 있다면, 검색 결과 개수와 그 안에 포함된 서로 다른 정답 근거의 개수를 구분한다. 또 튜닝용 질문과 최종 평가용 질문을 나누어 같은 질문에만 설정을 맞추는 일을 줄인다.</p>
+
+<h2 id="4-법률-텍스트는-길이와-구조를-함께-비교한다">4. 법률 텍스트는 길이와 구조를 함께 비교한다</h2>
+
+<p>청킹은 긴 문서를 검색과 임베딩에 사용할 작은 단위로 나누는 작업이다. 일정한 길이로 나누는 방식을 기준선으로 두고, 문단 분할과 조/항/호 구조를 이용한 분할을 비교한다. 청크 크기와 중첩뿐 아니라 법령명·조 제목·상위 항목을 함께 넣는 효과도 확인한다.</p>
+
+<p>검색 성능과 함께 맥락이 유지되는지도 확인한다. 본문과 단서가 떨어지거나 정의 조항을 놓치면 해석에 필요한 조건이 누락될 수 있다. 관련 조문을 추가로 찾아야 하는 질문도 포함해 하나의 청크만으로 충분한 경우와 복수 근거가 필요한 경우를 구분한다.</p>
+
+<p>청킹 비교에서는 같은 검색 개수 K와 같은 입력 토큰 예산을 각각 적용한다. 큰 청크와 작은 청크를 같은 개수로 가져오면 전달하는 정보량이 달라지므로, 두 조건을 함께 봐야 한다.</p>
+
+<h2 id="5-pdf-파싱과-청킹을-나누어-평가한다">5. PDF 파싱과 청킹을 나누어 평가한다</h2>
+
+<p>PDF 파싱은 문서에서 텍스트와 구조를 추출하는 과정이다. 이 단계에서 정보가 누락되거나 잘못 읽혔다면 청킹 방식을 바꾸는 것만으로 해결하기 어렵다. 파싱 결과를 중간 산출물로 남기고, 추출 오류와 분할 오류를 따로 추적한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>PDF 요소</th>
+      <th>파싱에서 확인할 것</th>
+      <th>청킹에서 확인할 것</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>문단</td>
+      <td>누락·오인식·읽기 순서</td>
+      <td>문단과 제목의 연결</td>
+    </tr>
+    <tr>
+      <td>페이지</td>
+      <td>머리말·꼬리말·각주 구분</td>
+      <td>페이지를 넘는 문단의 연속성</td>
+    </tr>
+    <tr>
+      <td>표</td>
+      <td>행·열·단위·주석 보존</td>
+      <td>표와 설명문, 여러 페이지 표의 연결</td>
+    </tr>
+    <tr>
+      <td>이미지</td>
+      <td>OCR·설명문의 정보 정확성</td>
+      <td>주변 문맥과 출처 연결</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>텍스트형과 스캔형 PDF를 구분하고 다단 문서, 병합 셀, 각주 같은 사례도 확인한다. 이미지는 OCR(광학 문자 인식)로 추출한 텍스트나 설명문을 이용한 검색을 기준선으로 두고, 직접 이미지 임베딩이 추가로 필요한지 비교한다.</p>
+
+<p>모든 검색 결과는 원래 파일과 페이지를 추적할 수 있어야 한다. PDF 파일의 페이지 번호와 문서에 인쇄된 쪽수가 다를 수 있으므로 두 값을 구분한다.</p>
+
+<h2 id="6-검색-평가는-정답-근거-포함-여부와-순위-품질을-함께-본다">6. 검색 평가는 정답 근거 포함 여부와 순위 품질을 함께 본다</h2>
+
+<p>임베딩 모델을 선정한 뒤에도 검색 방식은 비교 대상이다. 키워드 검색, 벡터 검색, 두 방식을 결합한 하이브리드 검색을 같은 질문에서 평가한다. 검색 후보의 순서를 다시 매기는 reranker도 적용 전후를 비교한다.</p>
+
+<p>법령명이나 조문 번호를 직접 쓰는 질문과 일상어로 상황을 설명하는 질문을 함께 다룬다. 문구가 비슷한 다른 조문, 개정 전후 문서, 조건이 다른 판례가 섞였을 때 필요한 근거를 구별하는지도 확인한다.</p>
+
+<p>검색 결과에 정답 근거가 얼마나 포함됐는지 평가한다. 재현율(Recall)은 전체 정답 근거 중 검색 결과에 포함된 근거의 비율이다. 첫 정답의 순위, 관련 결과의 상위 배치, 필요한 정답 근거가 모두 포함된 질문 비율도 측정한다. 평균 점수와 함께 질문 유형별 실패 사례를 남겨 다음 실험에서 개선할 대상을 정한다.</p>
+
+<h2 id="7-pdf-내용-확인과-법률-적용을-구분한다">7. PDF 내용 확인과 법률 적용을 구분한다</h2>
+
+<p>PDF에 쓰인 내용을 답하는 작업과 PDF의 사실관계에 법률을 적용하는 작업은 평가 기준이 다르다. 계약서나 사건 자료를 다룬다면 사실을 정확히 읽었는지, 적절한 법령·판례를 찾았는지, 그 근거를 사실관계에 적용했는지를 각각 확인해야 한다.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>평가 대상</th>
+      <th>확인할 내용</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>사실 추출</td>
+      <td>PDF의 당사자·행위·날짜·금액·조건을 정확히 읽었는가?</td>
+    </tr>
+    <tr>
+      <td>법률 근거</td>
+      <td>관련 조문·판례와 적용 시점을 적절히 선택했는가?</td>
+    </tr>
+    <tr>
+      <td>결론</td>
+      <td>요건·예외·단서를 반영해 답했는가?</td>
+    </tr>
+    <tr>
+      <td>인용</td>
+      <td>실제 존재하는 위치를 가리키며 주장을 뒷받침하는가?</td>
+    </tr>
+    <tr>
+      <td>정보 부족</td>
+      <td>근거가 없거나 사실이 부족할 때 유보하거나 추가 질문을 하는가?</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>PDF와 법령을 결합하는 효과는 같은 질문에 PDF만 제공한 경우, 법령만 제공한 경우, 둘 다 제공한 경우를 비교해 확인한다. 이때 결합 평가용 질문에는 적용 근거와 기대 결론을 별도로 준비한다.</p>
+
+<p>생성 오류를 분석할 때는 정답 근거를 제공한 조건과 실제 검색 근거를 제공한 조건도 비교한다. 답변의 정확성, 근거 충실성, 인용 정확성을 나누어 기록하고 자동 평가와 사람의 검토를 함께 사용한다.</p>
+
+<h2 id="8-결과는-재현-조건과-한계를-함께-남긴다">8. 결과는 재현 조건과 한계를 함께 남긴다</h2>
+
+<p>각 실험에서는 데이터·모델·파서·프롬프트의 버전과 설정을 고정한다. 한 번에 한 요소씩 바꾸고 질의별 검색 결과와 답변을 저장한다. 개선 수치와 함께 어떤 유형의 질문에서 나아졌는지 확인한다.</p>
+
+<p>운영에 가까워지면 지연시간·메모리·비용과 문서 갱신도 평가한다. 개정 법령을 추가하거나 기존 문서를 삭제했을 때 구버전과 중복 근거가 어떻게 처리되는지 살펴본다. 문서에 섞인 명령문을 지시로 따르는지 같은 실패 상황도 포함한다.</p>
+
+<h2 id="9-이후-포스트에서-다룰-내용">9. 이후 포스트에서 다룰 내용</h2>
+
+<p>각 결과 글은 앞서 제시한 연구 순서에 맞춰 정리한다. 해당 실험의 질문, 비교 조건, 변경한 요소, 결과와 실패 사례를 중심으로 설명한다.</p>
+
+<p>첫 실험의 결과는 <a href="https://kdm-korea.github.io/rag/embedding/2026/10/23/legal-embedding-recall-benchmark.html">한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교</a>에서 확인할 수 있다. 이후 실험도 결과가 정리되는 대로 이 글에 연결할 예정이다.</p>
+
+
+    </div>
+
+</article>
+<div class="post-nav">
+<a class="previous" href="/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html" title="KoBLEX 기반 법률 검색 테스트셋 생성">KoBLEX 기반 법률 검색 테스트셋 생성...</a><span></span>
+</div>
+<div class="post-related">
+      <div>Related Articles</div>
+      <ul>
+        <li><a class="post-link" href="/jekyll-theme-yat/rag/research/2026/10/24/legal-rag-research-plan.html" title="">법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/markdown/2018/05/26/mathjax-test.html" title="">Mathjax Test</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/rag/benchmark/2026/10/24/koblex-legal-rag-evaluation-design.html" title="">KoBLEX 기반 법률 검색 테스트셋 생성</a></li>
+<li><a class="post-link" href="/jekyll-theme-yat/example/2017/12/18/video-example.html" title="">Video example</a></li>
+</ul>
+    </div>
+<div class="post-comments"></div></section>
+</div>
+
+
+  </section>
+  <section class="sidebar" style="margin-left: 15px;">
+    <!-- Get sidebar items --></section>
+</div>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <ins class="kakao_ad_area" style="display:none;" data-ad-unit="DAN-IR3SEKWYp9BSWUj6" data-ad-width="320" data-ad-height="100"></ins>
+<script type="text/javascript" src="//t1.daumcdn.net/kas/static/ba.min.js" async></script>
+
+  <data class="u-url" href="/jekyll-theme-yat/"></data>
+
+  <div class="wrapper">
+    <div class="site-footer-inner">
+<div>Unpublished Work <span class="copyleft">©</span> 2017-2026 Sino</div>
+      <div>Powered by <a title="Jekyll is a simple, blog-aware, static site
+      generator." href="https://jekyllrb.com/">Jekyll</a> &amp; <a title="Yat, yet
+      another theme." href="https://github.com/jeffreytse/jekyll-theme-yat">Yat Theme</a>.</div>
+      <div class="footer-col rss-subscribe">Subscribe <a href="/jekyll-theme-yat/feed.xml">via RSS</a>
+</div>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

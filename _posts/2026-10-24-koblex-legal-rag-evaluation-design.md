@@ -121,7 +121,7 @@ QA의 `contexts`는 근거별로 펼쳐 다음 순서로 매핑했다.
 | qrels에 포함된 근거 연결 | 434 |
 | dev / test / holdout 질문 | 44 / 178 / 4 |
 
-qrels의 434건은 전체 근거 443건에서 미해결 4건과 보류 질문에 속한 나머지 근거 5건을 제외한 결과다. 통계와 검증 결과는 [audit summary](https://github.com/kdm-korea/llm-benchmark/blob/cbc43bbf59d3e96eca425a5d5330de8e5f28afc2/docs/benchmarks/koblex/audit-summary.json)에 기록했다.
+qrels의 434건은 전체 근거 443건에서 미해결 4건과 보류 질문에 속한 나머지 근거 5건을 제외한 결과다. 통계와 검증 결과는 [audit summary](https://github.com/kdm-korea/llm-benchmark/blob/main/docs/benchmarks/koblex/audit-summary.json)에 기록했다.
 
 개발·설정 조정용 dev, 최종 평가용 test, 미해결 질문 보관용 holdout으로 분할했다. 같은 질문 ID 계열이나 유사한 배경·질문을 가진 항목을 그룹으로 묶어 dev와 test에 걸치지 않게 했다. 다만 두 분할은 같은 법령 코퍼스를 사용하며, 공유하는 정답 근거가 10개 있다. 처음 보는 법령에 대한 일반화 성능을 측정하는 구성은 아니다.
 
@@ -131,4 +131,4 @@ qrels의 434건은 전체 근거 443건에서 미해결 4건과 보류 질문에
 
 이 매핑은 원본에 주석된 근거와 코퍼스 본문이 일치하는지 검증한 결과다. 법령의 적용 시점이나 법률적 정답성을 독립적인 전문가가 검수한 것은 아니다. 원본의 구조화된 시점 정보도 충분하지 않아 추가 검토가 필요하다.
 
-자세한 필드와 연결 구조는 [데이터 흐름 문서](https://github.com/kdm-korea/llm-benchmark/blob/ce6a6f4a5cf84d1baadc3ad77b0a2ea7523c6fe2/docs/benchmarks/koblex/data-flow.md)에 정리했다.
+자세한 필드와 연결 구조는 [데이터 흐름 문서](https://github.com/kdm-korea/llm-benchmark/blob/main/docs/benchmarks/koblex/data-flow.md)에 정리했다.

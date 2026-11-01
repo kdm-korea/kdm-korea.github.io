@@ -82,7 +82,7 @@ Recall은 관련 판례를 얼마나 회수했는지, nDCG는 관련 판례가 �
 
 전체 평가는 2026년 10월 20일 로컬 macOS 15.5의 Apple MPS 장치에서 수행하였다. 추론 자료형은 `torch.float32`, 배치 크기는 4였으며, Python 3.12.10, PyTorch 2.14.1, SentenceTransformers 5.7.0을 사용하였다. 모델 파일을 내려받은 뒤 임베딩 연산은 로컬에서 실행하였다.
 
-데이터와 모델의 리비전을 고정하고, 입력 설정과 실행 환경을 결과 메타데이터에 저장하였다. 데이터셋 리비전은 `1580448204d13ec8af13745086ffa91cfda407c3`이다. 모델 리비전과 실행 절차는 [벤치마크 구현 및 설정](https://github.com/kdm-korea/llm-benchmark/tree/2bc01e7fbb2c53619b5b0535ed21bfc497178128)에서 확인할 수 있다.
+데이터와 모델의 리비전을 고정하고, 입력 설정과 실행 환경을 결과 메타데이터에 저장하였다. 데이터셋 리비전은 `1580448204d13ec8af13745086ffa91cfda407c3`이다. 모델 리비전과 실행 절차는 [벤치마크 구현 및 설정](https://github.com/kdm-korea/llm-benchmark/tree/main)에서 확인할 수 있다.
 
 ## 3. 실험 결과
 
@@ -208,4 +208,4 @@ BGE-M3는 후속 검색 실험의 비교 기준으로 유지할 수 있다. Mult
 3. [KURE-v1 모델 카드](https://huggingface.co/nlpai-lab/KURE-v1)
 4. [Multilingual E5 Large 모델 카드](https://huggingface.co/intfloat/multilingual-e5-large)
 5. [MTEB 평가 프레임워크](https://github.com/embeddings-benchmark/mteb)
-6. [본 실험의 구현 및 설정](https://github.com/kdm-korea/llm-benchmark/tree/2bc01e7fbb2c53619b5b0535ed21bfc497178128)
+6. [본 실험의 구현 및 설정](https://github.com/kdm-korea/llm-benchmark/tree/main)

@@ -1,5 +1,6 @@
 ---
 layout: post
+benchmark_adfit: true
 title: "법률 RAG 개발을 위한 연구 방향과 단계별 평가 계획"
 subtitle: "임베딩 모델 선정부터 PDF 처리와 법률 근거 기반 답변 검증까지"
 categories: [RAG, Research]

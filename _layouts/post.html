@@ -25,6 +25,10 @@ sidebar:
 
     {%- include views/article.html -%}
 
+    {%- if page.benchmark_adfit -%}
+      {%- include extensions/benchmark-adfit.html -%}
+    {%- endif -%}
+
     {%- assign result = hidden | where_exp: "item", "item == 'navigator'" -%}
     {%- if result.size == 0 -%}
     <div class="post-nav">

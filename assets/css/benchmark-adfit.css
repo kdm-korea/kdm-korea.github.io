@@ -1,0 +1,28 @@
+/* Use the article's available width, including when a sidebar is present. */
+.benchmark-adfit {
+  container-type: inline-size;
+  margin: 30px 0;
+  text-align: center;
+}
+
+.benchmark-adfit-square {
+  width: 250px;
+  min-height: 250px;
+  margin: 0 auto;
+}
+
+.benchmark-adfit-wide {
+  display: none;
+  width: 728px;
+  min-height: 90px;
+  margin: 0 auto;
+}
+
+@container (min-width: 728px) {
+  .benchmark-adfit-square { display: none; }
+  .benchmark-adfit-wide { display: block; }
+}
+
+@container (max-width: 249px) {
+  .benchmark-adfit-square { display: none; }
+}

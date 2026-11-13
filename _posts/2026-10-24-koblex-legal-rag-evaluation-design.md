@@ -1,5 +1,6 @@
 ---
 layout: post
+benchmark_adfit: true
 title: "KoBLEX 기반 법률 검색 테스트셋 생성"
 subtitle: "질문의 정답 근거를 법령에 매핑하고 개발용·최종 평가용 데이터로 나누기"
 categories: [RAG, Benchmark]

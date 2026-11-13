@@ -1,5 +1,6 @@
 ---
 layout: post
+benchmark_adfit: true
 title: "한국어 판례 검색을 위한 임베딩 모델의 Recall과 nDCG 비교"
 subtitle: "BGE-M3, KURE-v1, Multilingual E5 Large의 문서 단위 검색 성능 평가"
 categories: [RAG, Embedding]
